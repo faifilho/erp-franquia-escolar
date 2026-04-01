@@ -214,12 +214,8 @@ async function reloginAdmin() {
 }
 
 async function checkFirstSetup() {
-  try {
-    var snap = await FS.collection("usuarios").limit(1).get();
-    STATE.firstSetup = snap.empty;
-  } catch(e) {
-    STATE.firstSetup = false;
-  }
+  // Don't need to check - onAuthStateChanged handles everything
+  STATE.firstSetup = false;
   STATE.loading = false;
   render();
 }
@@ -1223,6 +1219,61 @@ function render(){
 }
 
 
+
+async function runSetupWithAdmin(existingAdminUid, onMsg) {
+  onMsg("Criando perfil do admin...");
+  var adminUid = existingAdminUid || (FA.currentUser ? FA.currentUser.uid : null);
+  if (!adminUid) {
+    throw new Error("Admin nao esta logado. Faca login primeiro.");
+  }
+  // Create admin profile in Firestore
+  await FS.collection("usuarios").doc(adminUid).set({
+    nome:"Admin Franquia", email:"admin@franquia.com",
+    role:"admin", empId:null, av:"AF"
+  });
+
+  // Create other users
+  var OUTROS = [
+    {e:"dir.alfa@escola.com", p:"Alfa2025", role:"diretor",    empId:1, nome:"Carlos Souza",     av:"CS"},
+    {e:"dir.beta@escola.com", p:"Beta2025", role:"diretor",    empId:2, nome:"Fernanda Reis",    av:"FR"},
+    {e:"dir.gama@escola.com", p:"Gama2025", role:"diretor",    empId:3, nome:"Marcos Oliveira",  av:"MO"},
+    {e:"fin.alfa@escola.com", p:"Fin2025",  role:"financeiro", empId:1, nome:"Juliana Financas", av:"JF"},
+    {e:"op.beta@escola.com",  p:"Op2025",   role:"operacional",empId:2, nome:"Roberto Op",       av:"RO"},
+  ];
+
+  // Sign out to create other users
+  var adminCred = FA.currentUser ? {email:FA.currentUser.email} : null;
+  await FA.signOut();
+
+  for (var i=0; i<OUTROS.length; i++) {
+    var u = OUTROS[i];
+    onMsg("Criando usuario "+(i+2)+"/6: "+u.nome+"...");
+    try {
+      var cred = await FA.createUserWithEmailAndPassword(u.e, u.p);
+      await FS.collection("usuarios").doc(cred.user.uid).set({
+        nome:u.nome, email:u.e, role:u.role, empId:u.empId, av:u.av
+      });
+      await FA.signOut();
+    } catch(err) {
+      if (err.code !== "auth/email-already-in-use") throw err;
+    }
+  }
+
+  onMsg("Populando dados iniciais das escolas...");
+  await seedInitialData();
+
+  onMsg("Entrando como Admin...");
+  // Re-login as admin is not possible without password
+  // Just update state directly since we have the UID
+  STATE.user = {uid:adminUid, nome:"Admin Franquia", email:"admin@franquia.com", role:"admin", empId:null, av:"AF"};
+  STATE.empId = 0;
+  STATE.firstSetup = false;
+  STATE._pendingUser = null;
+  await loadAll();
+  STATE.mod = "dash";
+  onMsg("Pronto!");
+}
+
 // ─── SETUP WIZARD ────────────────────────────────────────────────────────────
 function renderSetup() {
   var msg = h("p",{style:{fontSize:"12px",color:"#2563EB",marginTop:"10px",minHeight:"16px"}},STATE.setupMsg||"");
@@ -1243,8 +1294,8 @@ function renderSetup() {
       [
         h("div",{style:{textAlign:"center",marginBottom:"20px"}},[
           h("div",{style:{fontSize:"32px",margin:"0 0 8px"}},"🏫"),
-          h("h1",{style:{fontSize:"18px",fontWeight:"700",color:"#0F172A",margin:"0 0 4px"}},"Configuracao Inicial"),
-          h("p",{style:{fontSize:"12px",color:"#64748B",margin:"0"}},"Este passo so e necessario uma vez")
+          h("h1",{style:{fontSize:"18px",fontWeight:"700",color:"#0F172A",margin:"0 0 4px"}},"Primeira Configuracao"),
+          h("p",{style:{fontSize:"12px",color:"#64748B",margin:"0"}},"Login realizado! Agora vamos configurar o sistema.")
         ]),
         h("div",{style:{background:"#F0FDF4",border:"1px solid #DCFCE7",borderRadius:"8px",padding:"12px 14px",marginBottom:"16px"}},
           h("p",{style:{margin:"0 0 8px",fontSize:"12px",fontWeight:"600",color:"#15803D"}},"Usuarios que serao criados automaticamente:"),
@@ -1267,8 +1318,9 @@ function renderSetup() {
         h("div",{style:{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}},
           h("p",{style:{margin:"0",fontSize:"11px",color:"#92400E"}},"⚠️ ANTES DE CONTINUAR: Confirme que o Authentication (E-mail/senha) esta ativado no Firebase Console → Seguranca → Authentication → Metodos de login → E-mail/senha → Ativado")
         ),
-        h("label",{style:{display:"block",fontSize:"11px",fontWeight:"600",color:"#374151",marginBottom:"4px"}},"Senha do Admin"),
-        inp,
+        h("div",{style:{background:"#DBEAFE",border:"1px solid #93C5FD",borderRadius:"8px",padding:"10px 12px",marginBottom:"12px"}},
+          h("p",{style:{margin:"0",fontSize:"12px",color:"#1D4ED8"}},"Logado como: admin@franquia.com ✓")
+        ),
         h("p",{id:"setup-msg",style:{fontSize:"12px",color:"#2563EB",margin:"0 0 8px",minHeight:"18px"}},STATE.setupMsg||""),
         btn,
         h("p",{style:{textAlign:"center",fontSize:"10px",color:"#94A3B8",marginTop:"8px"}},"Pode demorar 30-60 segundos — aguarde")
@@ -1478,12 +1530,23 @@ FA.onAuthStateChanged(async function(fbUser) {
         STATE.user = Object.assign({uid:fbUser.uid}, profDoc.data());
         STATE.empId = STATE.user.role==="admin" ? 0 : (STATE.user.empId || 1);
         await loadAll();
+        STATE.loading = false; STATE.mod = "dash"; render();
+      } else {
+        // Profile doesn't exist yet — first login, create admin profile + run setup
+        STATE.setupMsg = "";
+        STATE.loading = false;
+        STATE.firstSetup = true;
+        STATE._pendingUser = fbUser;
+        render();
       }
-    } catch(e) { console.error("Load error:", e); }
-    STATE.loading = false; STATE.mod = "dash"; render();
+    } catch(e) {
+      console.error("Load error:", e);
+      STATE.loading = false; render();
+    }
   } else {
     STATE.loading = false;
-    await checkFirstSetup();
+    STATE.firstSetup = false;
+    render();
   }
 });
 </script>
