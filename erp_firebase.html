@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ERP Franquia Escolar</title>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -148,6 +151,42 @@ tbody tr:hover{background:#FAFAFA}
   .kpi-grid{grid-template-columns:1fr 1fr}
   .form-grid{grid-template-columns:1fr}
 }
+
+/* DARK MODE */
+body.dark{background:#0F172A;color:#E2E8F0}
+body.dark .sidebar{background:#020617}
+body.dark .topbar{background:#1E293B;border-color:#334155}
+body.dark .sec{background:#1E293B;border-color:#334155}
+body.dark .sec-head{border-color:#334155}
+body.dark .kpi{background:#1E293B;border-color:#334155}
+body.dark .kpi-label{color:#94A3B8}
+body.dark .kpi-val{color:#F1F5F9}
+body.dark .kpi-sub{color:#64748B}
+body.dark table thead tr{background:#0F172A;border-color:#334155}
+body.dark th{color:#64748B}
+body.dark td{color:#CBD5E1;border-color:#1E293B}
+body.dark tbody tr:hover{background:#1E293B}
+body.dark .btn{background:#1E293B;border-color:#334155;color:#CBD5E1}
+body.dark .btn:hover{background:#334155}
+body.dark .btn.primary{background:#2563EB;color:#fff;border-color:#2563EB}
+body.dark .btn.success{background:#15803D;color:#fff;border-color:#15803D}
+body.dark .fbar input,.dark .fbar select{background:#1E293B;border-color:#334155;color:#CBD5E1}
+body.dark input,body.dark select,body.dark textarea{background:#1E293B;border-color:#334155;color:#E2E8F0}
+body.dark .modal{background:#1E293B}
+body.dark .modal-head{background:#1E293B;border-color:#334155}
+body.dark .modal-foot{border-color:#334155}
+body.dark .login-box{background:#1E293B}
+body.dark .user-card{border-color:#334155;background:#0F172A}
+body.dark .user-card:hover{background:#334155}
+body.dark .tab-item{color:#64748B}
+body.dark .tab-item.on{color:#60A5FA;border-bottom-color:#60A5FA}
+body.dark .tab-row{border-color:#334155}
+body.dark .lote-bar{background:#0F172A;border-color:#334155}
+body.dark .ftab{background:#1E293B;border-color:#334155;color:#94A3B8}
+body.dark .topbar-title{color:#F1F5F9}
+body.dark .sb-item-label{color:#9CA3AF}
+body.dark .sb-item.active .sb-item-label{color:#F1F5F9}
+
 </style>
 </head>
 <body>
@@ -177,7 +216,15 @@ var h = function(tag,attrs,children){
   });
   if(children!=null) [].concat(children).forEach(function(c){
     if(c==null||c===false||c===undefined) return;
-    el.appendChild(typeof c==="string"||typeof c==="number"?document.createTextNode(String(c)):c);
+    try {
+      if(typeof c==="string"||typeof c==="number"||typeof c==="boolean") {
+        el.appendChild(document.createTextNode(String(c)));
+      } else if(c instanceof Node) {
+        el.appendChild(c);
+      } else {
+        el.appendChild(document.createTextNode(String(c)));
+      }
+    } catch(e) { console.warn("appendChild error:", e, c); }
   });
   return el;
 };
@@ -321,6 +368,10 @@ var S={
   login:'<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>',
   hat:'<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
   clock:'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  moon:'<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun:'<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  eye:'<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeoff:'<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
   copy:'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
 };
 function ico(name,color,size){
@@ -361,7 +412,8 @@ function kpi(label,val,sub,subClass,iconName,iconColor,iconBg){
   var el=h("div",{"class":"kpi"},null);
   if(iconName){var ic=h("div",{"class":"kpi-icon",style:{background:iconBg||"#F1F5F9"}},null);ic.innerHTML=S[iconName]||"";ic.style.color=iconColor||"#64748B";el.appendChild(ic);}
   el.appendChild(h("div",{"class":"kpi-label"},label));
-  el.appendChild(h("div",{"class":"kpi-val"},String(val||"")));
+  var valStr = (val===null||val===undefined)?"":String(val);
+  el.appendChild(h("div",{"class":"kpi-val"},valStr));
   if(sub) el.appendChild(h("div",{"class":"kpi-sub "+(subClass||"")},sub));
   return el;
 }
@@ -502,6 +554,34 @@ function buildModal(){
   si.innerHTML=S.check; si.appendChild(document.createTextNode(" Salvar")); saveBtn.appendChild(si); foot.appendChild(saveBtn);
   box.appendChild(head); box.appendChild(body); box.appendChild(foot);
 
+  // CNPJ lookup helper
+  function buscarCNPJ(cnpj, form, grid2) {
+    var clean = cnpj.replace(/[^0-9]/g,"");
+    if(clean.length !== 14) return alert("CNPJ invalido. Digite os 14 numeros.");
+    var msgEl = grid2.querySelector(".cnpj-msg");
+    if(msgEl) msgEl.textContent = "Buscando...";
+    fetch("https://brasilapi.com.br/api/cnpj/v1/"+clean)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.cnpj){
+          form.nome = d.razao_social||form.nome;
+          form.cnpjCpf = cnpj;
+          form.cat = d.cnae_fiscal_descricao||form.cat;
+          form.cidade = d.municipio||form.cidade;
+          form.estado = d.uf||form.estado;
+          form.email = d.email||form.email;
+          form.tel = d.ddd_telefone_1||form.tel;
+          // Refresh all inputs
+          grid2.querySelectorAll("input,select").forEach(function(inp2){
+            var k2 = inp2.getAttribute("data-field");
+            if(k2 && form[k2]!=null) inp2.value = form[k2];
+          });
+          if(msgEl) { msgEl.style.color="#15803D"; msgEl.textContent = "CNPJ encontrado: "+d.razao_social; }
+        }
+      })
+      .catch(function(){ if(msgEl){ msgEl.style.color="#B91C1C"; msgEl.textContent="CNPJ nao encontrado na Receita Federal."; }});
+  }
+
   // Build form fields
   var grid=h("div",{"class":"form-grid"},null);
   (m.fields||[]).forEach(function(f){
@@ -514,7 +594,7 @@ function buildModal(){
     if(f.label) wrap.appendChild(h("label",null,f.label+(f.req?" *":"")));
     var inp;
     if(f.type==="select"){
-      inp=h("select",{onchange:function(){form[f.k]=inp.value;if(f.onChange)f.onChange(inp.value,form);}},null);
+      inp=h("select",{"data-field":f.k,onchange:function(){form[f.k]=inp.value;if(f.onChange)f.onChange(inp.value,form);}},null);
       inp.appendChild(h("option",{value:""},"Selecione..."));
       (f.options||[]).forEach(function(o){var op=h("option",{value:o.value||o},o.label||o);if((form[f.k]||"")===(o.value||o))op.selected=true;inp.appendChild(op);});
     } else if(f.type==="textarea"){
@@ -527,13 +607,25 @@ function buildModal(){
       row2.appendChild(cb); row2.appendChild(h("span",{style:{fontSize:"12px",color:"#374151"}},f.label));
       wrap.innerHTML=""; wrap.appendChild(row2); grid.appendChild(wrap); return;
     } else {
-      inp=h("input",{type:f.type||"text",oninput:function(){form[f.k]=f.type==="number"?+inp.value:inp.value;if(f.onChange)f.onChange(inp.value,form);}},null);
+      inp=h("input",{"data-field":f.k,type:f.type||"text",oninput:function(){form[f.k]=f.type==="number"?+inp.value:inp.value;if(f.onChange)f.onChange(inp.value,form);}},null);
       inp.value=form[f.k]!=null?form[f.k]:"";
       if(f.placeholder) inp.placeholder=f.placeholder;
     }
     if(inp) wrap.appendChild(inp);
     grid.appendChild(wrap);
   });
+  // Add CNPJ message area and search button if modal has cnpj field
+  var hasCnpj = (m.fields||[]).some(function(f){return f&&f.k==="cnpjCpf";});
+  if(hasCnpj){
+    var cnpjMsgRow=h("div",{style:{display:"flex",alignItems:"center",gap:"8px",gridColumn:"1/-1",marginBottom:"4px"}},null);
+    var cnpjMsg=h("span",{"class":"cnpj-msg",style:{fontSize:"11px",color:"#2563EB",flex:"1"}},"");
+    var cnpjSearchBtn=h("button",{"class":"btn sm",onclick:function(){buscarCNPJ(form.cnpjCpf||"",form,grid);}},null);
+    cnpjSearchBtn.appendChild(ico("globe","#2563EB",11));
+    cnpjSearchBtn.appendChild(document.createTextNode(" Buscar CNPJ na Receita Federal"));
+    cnpjMsgRow.appendChild(cnpjMsg); cnpjMsgRow.appendChild(cnpjSearchBtn);
+    // Insert before grid
+    body.insertBefore(cnpjMsgRow, grid);
+  }
   body.appendChild(grid);
   if(m.extra) body.appendChild(m.extra);
   return bg;
@@ -946,10 +1038,10 @@ function pageClientes(){
       var addBtn=h("button",{"class":"btn primary",onclick:function(){
         openModal({title:"Novo "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:{status:"Ativo",empId:STATE.empId,tipo:tab==="Clientes"?"Cliente":"Fornecedor"},fields:[
           {k:"nome",label:"Nome / Razao Social",req:true,full:true},
-          {k:"cnpjCpf",label:"CNPJ / CPF"},{k:"tipo",label:"Tipo",type:"select",options:["Cliente","Fornecedor","Cliente e Fornecedor"]},
+          {k:"cnpjCpf",label:"CNPJ / CPF (digite e clique Buscar)",onChange:function(v,f2){if(v.replace(/[^0-9]/g,"").length===14){buscarCNPJ(v,f2,grid);}}},{k:"tipo",label:"Tipo",type:"select",options:["Cliente","Fornecedor","Cliente e Fornecedor"]},
           {k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"text"},
           {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
-          {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"obs",label:"Observacoes",type:"textarea",full:true}
+          {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"tags",label:"Tags (separe por virgula, ex: vip, professor, parceiro)"},{k:"obs",label:"Observacoes",type:"textarea",full:true}
         ],onSave:function(d){upd(key,function(arr){return arr.concat([Object.assign(d,{id:maxId(DB[key])+1})]);});rebuild();}});
       }},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
@@ -967,6 +1059,13 @@ function pageClientes(){
       {k:"tel",label:"Telefone",w:"120px",nowrap:true},
       {k:"email",label:"Email",maxw:"150px"},
       {k:"cidade",label:"Cidade"},
+      {k:"tags",label:"Tags",maxw:"130px",render:function(v){
+        if(!v) return "";
+        var wrap=document.createElement("span");
+        String(v).split(",").forEach(function(t){t=t.trim();if(!t)return;
+          var tg=document.createElement("span");tg.className="badge";tg.style.cssText="background:#E0E7FF;color:#4338CA;margin-right:3px;font-size:9px";tg.textContent=t;wrap.appendChild(tg);
+        }); return wrap;
+      }},
       {k:"status",label:"Status",w:"70px",render:function(v){return badge(v);}},
     ];
     var secKey=tab==="Clientes"?"clientes":"fornec";
@@ -1073,7 +1172,7 @@ function pageAlunos(){
         {k:"cpf",label:"CPF do Aluno"},{k:"dtMatricula",label:"Data Matricula",type:"date"},
         {k:"turma",label:"Turma",type:"select",options:TURMAS},{k:"mens",label:"Mensalidade R$",type:"number"},
         {k:"tel",label:"Telefone"},{k:"email",label:"Email do Responsavel"},
-        {k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},{k:"obs",label:"Observacoes",type:"textarea",full:true}
+        {k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},{k:"tags",label:"Tags (ex: bolsista, integral, especial)"},{k:"obs",label:"Observacoes",type:"textarea",full:true}
       ],onSave:function(d){upd("alunos",function(arr){return arr.concat([Object.assign(d,{id:maxId(DB.alunos)+1})]);});rebuild();}});}},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
 
@@ -1288,7 +1387,61 @@ function pageConfig(){
   }},"Importar Backup"); backupBody.appendChild(impAllBtn);
   page.appendChild(sec("Backup e Restauracao",[],backupBody,false));
 
+  // Zerar dados
+  var zerarBody=h("div",{"class":"sec-pad"},null);
+  var zerarBtn=h("button",{"class":"btn danger",style:{marginRight:"10px"},onclick:function(){
+    if(!confirm("ATENCAO! Isso vai apagar TODOS os dados (contas, alunos, clientes, etc.) desta escola e nao pode ser desfeito. Tem certeza?")) return;
+    if(!confirm("Ultima confirmacao: apagar TODOS os dados?")) return;
+    var emp=STATE.empId;
+    ["pagar","receber","clientes","fornec","alunos","cursos","fluxo"].forEach(function(key){
+      DB[key]=(DB[key]||[]).filter(function(r){return r.empId!==emp;});
+    });
+    saveDB(); render(); alert("Dados zerados com sucesso!");
+  }},"Zerar dados desta escola");
+  var zerarTudoBtn=h("button",{"class":"btn danger",onclick:function(){
+    if(!confirm("ATENCAO! Isso vai apagar TODOS os dados de TODAS as escolas. Confirma?")) return;
+    if(!confirm("Ultima confirmacao: apagar TUDO?")) return;
+    DB=seedDB(); saveDB(); render(); alert("Sistema reiniciado com dados iniciais!");
+  }},"Reiniciar sistema completo (apaga tudo)");
+  zerarBody.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"10px"}},"Use para limpar os dados de demonstracao e comecar do zero."));
+  zerarBody.appendChild(zerarBtn); zerarBody.appendChild(zerarTudoBtn);
+  page.appendChild(sec("Zerar Dados",[],zerarBody,false));
+
+  // Contas Bancarias
+  var contasBody=h("div",null,null);
+  var contasList=DB.contasBancarias||[];
+  function rebuilContasBanc(){
+    contasBody.innerHTML="";
+    var grid=h("div",{style:{padding:"14px"}},null);
+    var addCB=h("button",{"class":"btn primary sm",style:{marginBottom:"12px"},onclick:function(){
+      openModal({title:"Nova Conta Bancaria",data:{empId:STATE.empId,tipo:"Corrente"},fields:[
+        {k:"banco",label:"Banco",req:true},{k:"agencia",label:"Agencia"},{k:"conta",label:"Numero da Conta"},
+        {k:"tipo",label:"Tipo",type:"select",options:["Corrente","Poupanca","Caixa","Investimento"]},
+        {k:"saldoInicial",label:"Saldo Inicial R$",type:"number"},{k:"desc",label:"Descricao"}
+      ],onSave:function(d){
+        if(!DB.contasBancarias) DB.contasBancarias=[];
+        DB.contasBancarias.push(Object.assign(d,{id:maxId(DB.contasBancarias||[])+1}));
+        saveDB(); rebuilContasBanc();
+      }});
+    }},null);
+    addCB.innerHTML=S.plus; addCB.appendChild(document.createTextNode(" Nova Conta")); grid.appendChild(addCB);
+    var minhasContas=(DB.contasBancarias||[]).filter(function(c2){return c2.empId===STATE.empId||STATE.empId===0;});
+    if(!minhasContas.length){grid.appendChild(h("p",{style:{fontSize:"12px",color:"#94A3B8"}},"Nenhuma conta cadastrada. Adicione suas contas bancarias acima."));}
+    minhasContas.forEach(function(cb){
+      var card=h("div",{style:{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:"8px",padding:"12px",marginBottom:"8px",display:"flex",alignItems:"center",gap:"12px"}},null);
+      card.appendChild(h("div",{style:{flex:"1"}},null));
+      card.querySelector("div").innerHTML="<strong>"+cb.banco+"</strong> <span style='color:#64748B;font-size:11px'>"+cb.tipo+"</span><br><span style='font-size:12px;color:#374151'>Ag: "+(cb.agencia||"-")+" | Cc: "+(cb.conta||"-")+"</span>";
+      if(cb.saldoInicial){var sv=h("span",{style:{fontWeight:"700",color:"#15803D",fontSize:"13px"}},BRL(cb.saldoInicial));card.appendChild(sv);}
+      var delCB=h("button",{style:{color:"#EF4444",padding:"4px",lineHeight:"0"},onclick:function(){if(confirm("Excluir conta?")){{DB.contasBancarias=(DB.contasBancarias||[]).filter(function(x){return x.id!==cb.id;});saveDB();rebuilContasBanc();}}}},"");
+      delCB.innerHTML=S.del; card.appendChild(delCB); grid.appendChild(card);
+    });
+    contasBody.appendChild(grid);
+  }
+  rebuilContasBanc();
+  page.appendChild(sec("Contas Bancarias",[],contasBody,false));
+
   // Usuarios info
+
   var usrBody=h("div",{"class":"sec-pad"},null);
   usrBody.appendChild(h("div",{style:{fontSize:"13px",lineHeight:"2.2"}},null));
   usrBody.querySelector("div").innerHTML=[
@@ -1340,7 +1493,14 @@ function renderLogin(){
   });
   box.appendChild(cards);
 
-  var pwdInp=h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{margin:"10px 0 6px"}},null);
+  var pwdWrap=h("div",{style:{position:"relative",margin:"10px 0 6px"}},null);
+  var pwdInp=h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{paddingRight:"36px",margin:"0",width:"100%"}},null);
+  var eyeBtn=h("button",{style:{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",lineHeight:"0",color:"#94A3B8",padding:"4px"},onclick:function(){
+    pwdInp.type=pwdInp.type==="password"?"text":"password";
+    eyeBtn.innerHTML=pwdInp.type==="password"?S.eye:S.eyeoff;
+  }},null);
+  eyeBtn.innerHTML=S.eye;
+  pwdWrap.appendChild(pwdInp); pwdWrap.appendChild(eyeBtn);
   var errMsg=h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
   var loginBtn=h("button",{style:{width:"100%",padding:"10px",borderRadius:"8px",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px"},onclick:function(){
     errMsg.style.display="none";
@@ -1358,7 +1518,7 @@ function renderLogin(){
   }},null);
   loginBtn.innerHTML=S.login; loginBtn.appendChild(document.createTextNode(" Entrar"));
   pwdInp.addEventListener("keydown",function(e){if(e.key==="Enter")loginBtn.click();});
-  box.appendChild(pwdInp); box.appendChild(errMsg); box.appendChild(loginBtn);
+  box.appendChild(pwdWrap); box.appendChild(errMsg); box.appendChild(loginBtn);
   box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"8px"}},"Dados salvos no Firebase - acesse de qualquer dispositivo"));
   box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"2px"}},"Senhas: Admin=Escola2025 | Alfa2025 | Beta2025 | Gama2025 | Fin2025 | Op2025"));
   return bg;
@@ -1459,7 +1619,19 @@ function render(){
   tLeft.appendChild(h("span",{"class":"topbar-title"},(nav.find(function(n){return n.id===STATE.mod;})||{label:""}).label));
   tLeft.appendChild(h("span",{"class":"emp-pill",style:{color:empresa.cor,background:empresa.corL}},empresa.nome));
   topbar.appendChild(tLeft);
-  topbar.appendChild(h("span",{style:{fontSize:"10px",color:"#CBD5E1"}},new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})));
+  var darkBtn=h("button",{"class":"btn sm",style:{padding:"4px 8px",lineHeight:"0",display:"inline-flex",alignItems:"center",gap:"4px"},title:"Modo noturno",onclick:function(){
+    document.body.classList.toggle("dark");
+    localStorage.setItem("erp_dark",document.body.classList.contains("dark")?"1":"0");
+    darkBtn.innerHTML=document.body.classList.contains("dark")?S.sun:S.moon;
+  }},null);
+  var isDark=localStorage.getItem("erp_dark")==="1";
+  if(isDark) document.body.classList.add("dark");
+  darkBtn.innerHTML=isDark?S.sun:S.moon;
+  var tRight=h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},[
+    h("span",{style:{fontSize:"10px",color:"#CBD5E1"}},new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})),
+    darkBtn
+  ]);
+  topbar.appendChild(tRight);
   main.appendChild(topbar);
 
   var PAGES={dash:pageDash,pagar:pagePagar,receber:pageReceber,clientes:pageClientes,fluxo:pageFluxo,alunos:pageAlunos,cursos:pageCursos,rel:pageRel,config:pageConfig};
