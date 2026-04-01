@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Franquia - Login</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0F172A;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px}
+h1{font-size:18px;font-weight:700;color:#0F172A;text-align:center;margin:0 0 4px}
+p.sub{font-size:12px;color:#64748B;text-align:center;margin:0 0 20px}
+label{display:block;font-size:11px;font-weight:600;color:#374151;margin-bottom:4px}
+input{width:100%;height:38px;padding:0 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-bottom:12px;outline:none}
+input:focus{border-color:#2563EB}
+button{width:100%;padding:10px;border-radius:8px;border:none;background:#0F172A;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px}
+button:disabled{opacity:.6;cursor:not-allowed}
+.err{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:10px 14px;font-size:12px;color:#B91C1C;margin-top:10px;display:none;word-break:break-all}
+.ok{background:#F0FDF4;border:1px solid #DCFCE7;border-radius:8px;padding:10px 14px;font-size:12px;color:#15803D;margin-top:10px;display:none}
+.emoji{font-size:36px;text-align:center;display:block;margin:0 0 8px}
+</style>
+</head>
+<body>
+<div class="box">
+  <span class="emoji">🏫</span>
+  <h1>ERP Franquia Escolar</h1>
+  <p class="sub">Rede de Ensino - 3 Unidades</p>
+  
+  <label>Email</label>
+  <input type="email" id="email" value="admin@franquia.com" />
+  
+  <label>Senha</label>
+  <input type="password" id="pwd" placeholder="Digite sua senha" />
+  
+  <button id="btn" onclick="fazer_login()">Entrar</button>
+  
+  <div class="err" id="err"></div>
+  <div class="ok" id="ok"></div>
+</div>
+
+<script>
+var CFG = {
+  apiKey: "AIzaSyC57PPJT-T-kULbdZU8dR1OOrRELY0S9_Y",
+  authDomain: "erp-franquia-escolar.firebaseapp.com",
+  projectId: "erp-franquia-escolar",
+  storageBucket: "erp-franquia-escolar.firebasestorage.app",
+  messagingSenderId: "881570951200",
+  appId: "1:881570951200:web:4377127f87dac025904c45"
+};
+firebase.initializeApp(CFG);
+var FA = firebase.auth();
+FA.languageCode = "pt";
+
+async function fazer_login() {
+  var email = document.getElementById("email").value.trim();
+  var pwd   = document.getElementById("pwd").value;
+  var btn   = document.getElementById("btn");
+  var err   = document.getElementById("err");
+  var ok    = document.getElementById("ok");
+  
+  err.style.display = "none";
+  ok.style.display  = "none";
+  
+  if (!email || !pwd) {
+    err.textContent = "Preencha email e senha.";
+    err.style.display = "block";
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = "Entrando...";
+  
+  try {
+    var cred = await FA.signInWithEmailAndPassword(email, pwd);
+    ok.innerHTML = "Login realizado! UID: " + cred.user.uid + "<br>Redirecionando para o ERP...";
+    ok.style.display = "block";
+    // Redirect to full ERP
+    setTimeout(function(){ window.location.href = "erp_firebase.html"; }, 2000);
+  } catch(e) {
+    var msg = "";
+    if (e.code === "auth/user-not-found") msg = "Usuário não encontrado. Crie o usuário no Firebase Console.";
+    else if (e.code === "auth/wrong-password") msg = "Senha incorreta. Tente novamente.";
+    else if (e.code === "auth/invalid-login-credentials") msg = "Email ou senha incorretos.";
+    else if (e.code === "auth/too-many-requests") msg = "Conta bloqueada temporariamente por muitas tentativas. Aguarde alguns minutos.";
+    else if (e.code === "auth/network-request-failed") msg = "Erro de rede. Verifique sua conexão.";
+    else if (e.code === "auth/unauthorized-domain") msg = "Domínio não autorizado no Firebase. Adicione " + window.location.hostname + " em Authentication > Configurações > Domínios autorizados.";
+    else msg = "Erro: " + e.code + " — " + e.message;
+    
+    err.textContent = msg;
+    err.style.display = "block";
+    btn.disabled = false;
+    btn.textContent = "Tentar Novamente";
+  }
+}
+
+document.getElementById("pwd").addEventListener("keydown", function(e){
+  if (e.key === "Enter") fazer_login();
+});
+
+// Check auth state
+FA.onAuthStateChanged(function(user){
+  if (user) {
+    document.getElementById("ok").innerHTML = "Ja logado como: " + user.email;
+    document.getElementById("ok").style.display = "block";
+  }
+});
+</script>
+</body>
+</html>
