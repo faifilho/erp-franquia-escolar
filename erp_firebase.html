@@ -177,7 +177,7 @@ var h = function(tag,attrs,children){
   });
   if(children!=null) [].concat(children).forEach(function(c){
     if(c==null||c===false||c===undefined) return;
-    el.appendChild(typeof c==="string"?document.createTextNode(c):c);
+    el.appendChild(typeof c==="string"||typeof c==="number"?document.createTextNode(String(c)):c);
   });
   return el;
 };
@@ -361,7 +361,7 @@ function kpi(label,val,sub,subClass,iconName,iconColor,iconBg){
   var el=h("div",{"class":"kpi"},null);
   if(iconName){var ic=h("div",{"class":"kpi-icon",style:{background:iconBg||"#F1F5F9"}},null);ic.innerHTML=S[iconName]||"";ic.style.color=iconColor||"#64748B";el.appendChild(ic);}
   el.appendChild(h("div",{"class":"kpi-label"},label));
-  el.appendChild(h("div",{"class":"kpi-val"},val));
+  el.appendChild(h("div",{"class":"kpi-val"},String(val||"")));
   if(sub) el.appendChild(h("div",{"class":"kpi-sub "+(subClass||"")},sub));
   return el;
 }
@@ -1365,7 +1365,7 @@ function renderLogin(){
 }
 
 // ── FIREBASE AUTH ─────────────────────────────────────────────────────────────
-var _fbReady=false;
+var _fbReady=true;  // Show login immediately, Firebase will update
 FA.onAuthStateChanged(function(fbUser){
   _fbReady=true;
   if(fbUser){
