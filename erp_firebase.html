@@ -238,11 +238,20 @@ var NOW=new Date(); var ANO=NOW.getFullYear(); var MES=NOW.getMonth()+1;
 var MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
-var EMPRESAS=[
+var EMPRESAS_DEFAULT=[
   {id:1,nome:"Escola Alfa",short:"Alfa",cor:"#2563EB",corL:"#DBEAFE",cidade:"Belo Horizonte",cnpj:"11.111.111/0001-11"},
   {id:2,nome:"Escola Beta",short:"Beta",cor:"#15803D",corL:"#DCFCE7",cidade:"Contagem",cnpj:"22.222.222/0001-22"},
   {id:3,nome:"Escola Gama",short:"Gama",cor:"#6D28D9",corL:"#EDE9FE",cidade:"Betim",cnpj:"33.333.333/0001-33"},
 ];
+function loadEmpresas(){
+  try{
+    var saved=localStorage.getItem("erp_empresas");
+    if(saved) return JSON.parse(saved);
+  }catch(e){}
+  return JSON.parse(JSON.stringify(EMPRESAS_DEFAULT));
+}
+function saveEmpresas(arr){ localStorage.setItem("erp_empresas",JSON.stringify(arr)); }
+var EMPRESAS=loadEmpresas();
 var FRANQUIA={id:0,nome:"Franquia - Consolidado",short:"Todas",cor:"#0F172A",corL:"#E2E8F0"};
 var ROLES={
   admin:      {label:"Admin Franquia",cor:"#B91C1C",bg:"#FEE2E2",mods:["dash","pagar","receber","clientes","fornec","fluxo","alunos","cursos","rel","config"]},
@@ -271,6 +280,18 @@ var USER_PWDS = {
   "dir.beta@escola.com":"Beta2025","dir.gama@escola.com":"Gama2025",
   "fin.alfa@escola.com":"Fin2025","op.beta@escola.com":"Op2025"
 };
+
+// Custom users managed by admin
+function loadCustomUsers(){ try{ var s=localStorage.getItem("erp_usuarios"); return s?JSON.parse(s):[]; }catch(e){ return []; } }
+function saveCustomUsers(arr){ localStorage.setItem("erp_usuarios",JSON.stringify(arr)); }
+var CUSTOM_USERS = loadCustomUsers();
+
+// Get profile for any email (check PROF_MAP then CUSTOM_USERS)
+function getProfile(email){
+  if(PROF_MAP[email]) return PROF_MAP[email];
+  var cu = CUSTOM_USERS.find(function(u){ return u.email===email; });
+  return cu ? {nome:cu.nome, role:cu.role, empId:cu.empId, av:cu.av} : null;
+}
 
 // ── STATE & DATA ──────────────────────────────────────────────────────────────
 var STATE={user:null,empId:null,mod:"dash",modal:null,loteSelected:{}};
@@ -1354,7 +1375,197 @@ function pageConfig(){
   var page=h("div",{"class":"page"},null);
   var cfg=DB.config||{};
 
+  // ── ESCOLAS ──────────────────────────────────────────────────────────────
+  var escolasBody=h("div",null,null);
+  function rebuildEscolas(){
+    escolasBody.innerHTML="";
+    var grid2=h("div",{style:{padding:"14px"}},null);
+    EMPRESAS.forEach(function(e,idx){
+      var card=h("div",{style:{background:"#F8FAFC",border:"2px solid "+e.cor+"40",borderRadius:"10px",padding:"14px",marginBottom:"10px"}},null);
+      card.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}},[
+        h("div",{style:{width:"10px",height:"10px",borderRadius:"50%",background:e.cor,flexShrink:"0"}}),
+        h("strong",{style:{fontSize:"13px",color:e.cor}},"Escola "+String(idx+1))
+      ]));
+      var fg=h("div",{"class":"form-grid"},null);
+      function addField(label2,key,val){
+        var wrap=h("div",{"class":"field"},null);
+        wrap.appendChild(h("label",null,label2));
+        var inp2=h("input",{type:"text",value:val||"",oninput:function(){
+          EMPRESAS[idx][key]=inp2.value;
+          // Update short name automatically from first word of nome
+          if(key==="nome") EMPRESAS[idx].short=inp2.value.split(" ")[0]||inp2.value;
+          saveEmpresas(EMPRESAS);
+        }},null);
+        wrap.appendChild(inp2); return wrap;
+      }
+      fg.appendChild(addField("Nome da Escola","nome",e.nome));
+      fg.appendChild(addField("Cidade","cidade",e.cidade));
+      fg.appendChild(addField("CNPJ","cnpj",e.cnpj));
+      card.appendChild(fg);
+      grid2.appendChild(card);
+    });
+    var saveBtn2=h("button",{"class":"btn primary",onclick:function(){
+      saveEmpresas(EMPRESAS);
+      render();
+      alert("Nomes das escolas salvos! Recarregue a pagina para ver as mudancas no menu.");
+    }},"Salvar Nomes das Escolas");
+    grid2.appendChild(saveBtn2);
+    escolasBody.appendChild(grid2);
+  }
+  rebuildEscolas();
+  page.appendChild(sec("Escolas da Franquia",[],escolasBody,false));
+
+  // ── USUARIOS ──────────────────────────────────────────────────────────────
+
+  // ── GERENCIAR USUÁRIOS PERSONALIZADOS ──────────────────────────────────────
+  var gerenciarBody=h("div",null,null);
+  function rebuildGerenciar(){
+    gerenciarBody.innerHTML="";
+    var wrap=h("div",{style:{padding:"14px"}},null);
+    wrap.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"12px"}},"Adicione usuarios com o email da franquia (ex: dgandra@schoolofrock.com). O sistema criara a conta no Firebase automaticamente."));
+    
+    var addBtn2=h("button",{"class":"btn primary",style:{marginBottom:"14px"},onclick:function(){
+      openModal({title:"Novo Usuario",data:{role:"diretor",empId:1},fields:[
+        {k:"nome",label:"Nome completo",req:true,full:true},
+        {k:"email",label:"Email (ex: dgandra@schoolofrock.com)",req:true,full:true},
+        {k:"senha",label:"Senha inicial (minimo 6 caracteres)",req:true},
+        {k:"role",label:"Nivel de acesso",type:"select",options:["admin","diretor","financeiro","operacional"]},
+        {k:"empId",label:"Escola",type:"select",options:[
+          {value:0,label:"Todas (Admin)"},
+          {value:1,label:EMPRESAS[0]?EMPRESAS[0].nome:"Escola 1"},
+          {value:2,label:EMPRESAS[1]?EMPRESAS[1].nome:"Escola 2"},
+          {value:3,label:EMPRESAS[2]?EMPRESAS[2].nome:"Escola 3"},
+        ]},
+      ],onSave:async function(d){
+        if(!d.email||!d.senha||!d.nome){return alert("Preencha nome, email e senha.");}
+        if(d.senha.length<6){return alert("Senha precisa ter pelo menos 6 caracteres.");}
+        // Create Firebase user
+        var adminEmail=STATE.user.email;
+        var adminPwd=prompt("Para criar o usuario, confirme sua senha de admin:");
+        if(!adminPwd) return;
+        try {
+          // Save current admin creds, create new user, sign back in
+          await FA.signOut();
+          var cred = await FA.createUserWithEmailAndPassword(d.email, d.senha);
+          await FA.signOut();
+          await FA.signInWithEmailAndPassword(adminEmail, adminPwd);
+          // Save to custom users
+          var av = d.nome.split(" ").slice(0,2).map(function(p){return p[0];}).join("").toUpperCase();
+          var newUser = {id:Date.now(),nome:d.nome,email:d.email,role:d.role,empId:+d.empId||null,av:av,senha:d.senha};
+          CUSTOM_USERS.push(newUser);
+          saveCustomUsers(CUSTOM_USERS);
+          rebuildGerenciar();
+          alert("Usuario "+d.nome+" criado com sucesso!\nEmail: "+d.email+"\nSenha: "+d.senha);
+        } catch(e) {
+          await FA.signInWithEmailAndPassword(adminEmail, adminPwd).catch(function(){});
+          alert("Erro ao criar usuario: "+(e.code==="auth/email-already-in-use"?"Email ja cadastrado.":e.message));
+        }
+      }});
+    }},null);
+    addBtn2.innerHTML=S.plus; addBtn2.appendChild(document.createTextNode(" Adicionar Usuario")); wrap.appendChild(addBtn2);
+
+    if(CUSTOM_USERS.length===0){
+      wrap.appendChild(h("p",{style:{fontSize:"12px",color:"#94A3B8"}},"Nenhum usuario personalizado ainda. Clique em Adicionar Usuario acima."));
+    }
+    CUSTOM_USERS.forEach(function(u){
+      var rc=ROLES[u.role]||{bg:"#F1F5F9",cor:"#374151",label:u.role};
+      var card=h("div",{style:{border:"1px solid #E2E8F0",borderRadius:"8px",padding:"10px 14px",marginBottom:"7px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}},null);
+      var av2=h("div",{style:{width:"32px",height:"32px",borderRadius:"50%",background:rc.bg,color:rc.cor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",flexShrink:"0"}},u.av);
+      card.appendChild(av2);
+      var info2=h("div",{style:{flex:"1",minWidth:"150px"}},null);
+      info2.appendChild(h("strong",{style:{fontSize:"12px"}},u.nome));
+      info2.appendChild(h("div",{style:{fontSize:"11px",color:"#64748B"}},u.email));
+      info2.appendChild(h("div",{style:{fontSize:"10px"}},null));
+      var roleBadge=h("span",{style:{background:rc.bg,color:rc.cor,fontSize:"9px",fontWeight:"600",padding:"1px 6px",borderRadius:"10px"}},rc.label||u.role);
+      var escolaNome=u.empId===0||!u.empId?"Todas as escolas":(EMPRESAS.find(function(e){return e.id===+u.empId;})||{nome:"?"}).nome;
+      info2.querySelector("div").appendChild(roleBadge);
+      info2.querySelector("div").appendChild(h("span",{style:{color:"#94A3B8",fontSize:"10px",marginLeft:"5px"}},escolaNome));
+      card.appendChild(info2);
+      // Senha
+      var pwdInfo=h("div",{style:{fontFamily:"monospace",fontSize:"11px",color:"#374151",background:"#F8FAFC",padding:"4px 8px",borderRadius:"5px"}},u.senha||"(sem senha salva)");
+      card.appendChild(pwdInfo);
+      // Copy
+      var cpBtn2=h("button",{"class":"btn xs",onclick:function(){
+        var txt="ERP Franquia Escolar\nLink: "+window.location.href.split("?")[0]+"\nEmail: "+u.email+"\nSenha: "+u.senha+"\nAcesso: "+(rc.label||u.role)+" - "+escolaNome;
+        navigator.clipboard.writeText(txt);
+        cpBtn2.textContent="Copiado!"; setTimeout(function(){cpBtn2.innerHTML=S.copy+" Copiar";},2000);
+      }},null);
+      cpBtn2.innerHTML=S.copy; cpBtn2.appendChild(document.createTextNode(" Copiar")); card.appendChild(cpBtn2);
+      // Delete
+      var delBtn2=h("button",{"class":"btn xs danger",onclick:function(){
+        if(confirm("Remover "+u.nome+"? (O acesso ao Firebase nao sera revogado automaticamente.)")) {
+          CUSTOM_USERS=CUSTOM_USERS.filter(function(x){return x.id!==u.id;});
+          saveCustomUsers(CUSTOM_USERS); rebuildGerenciar();
+        }
+      }},null);
+      delBtn2.innerHTML=S.del; card.appendChild(delBtn2);
+      wrap.appendChild(card);
+    });
+    gerenciarBody.appendChild(wrap);
+  }
+  rebuildGerenciar();
+  page.appendChild(sec("Gerenciar Usuarios da Franquia",[],gerenciarBody,false));
+
+  var usuBody=h("div",{style:{padding:"14px"}},null);
+  var USUARIOS_INFO=[
+    {nome:"Admin Franquia",email:"admin@franquia.com",senha:"Escola2025",escola:"Todas as escolas",role:"Admin"},
+    {nome:"Carlos Souza",email:"dir.alfa@escola.com",senha:"Alfa2025",escola:EMPRESAS[0]?EMPRESAS[0].nome:"Escola Alfa",role:"Diretor"},
+    {nome:"Fernanda Reis",email:"dir.beta@escola.com",senha:"Beta2025",escola:EMPRESAS[1]?EMPRESAS[1].nome:"Escola Beta",role:"Diretora"},
+    {nome:"Marcos Oliveira",email:"dir.gama@escola.com",senha:"Gama2025",escola:EMPRESAS[2]?EMPRESAS[2].nome:"Escola Gama",role:"Diretor"},
+    {nome:"Juliana Financas",email:"fin.alfa@escola.com",senha:"Fin2025",escola:EMPRESAS[0]?EMPRESAS[0].nome:"Escola Alfa",role:"Financeiro"},
+    {nome:"Roberto Op.",email:"op.beta@escola.com",senha:"Op2025",escola:EMPRESAS[1]?EMPRESAS[1].nome:"Escola Beta",role:"Operacional"},
+  ];
+  
+  usuBody.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"12px"}},"Compartilhe os dados abaixo com cada usuario. Eles acessam pelo link do ERP e fazem login com o email e senha correspondentes."));
+  
+  // Link do ERP
+  var linkDiv=h("div",{style:{background:"#F0FDF4",border:"1px solid #DCFCE7",borderRadius:"8px",padding:"10px 14px",marginBottom:"16px",display:"flex",alignItems:"center",gap:"10px"}},null);
+  var linkText=h("span",{style:{fontSize:"12px",fontWeight:"600",color:"#15803D",flex:"1"}},window.location.href.split("?")[0]);
+  var copyLinkBtn=h("button",{"class":"btn sm success",onclick:function(){
+    navigator.clipboard.writeText(window.location.href.split("?")[0]);
+    copyLinkBtn.textContent="Copiado!";
+    setTimeout(function(){copyLinkBtn.textContent="Copiar Link";},2000);
+  }},"Copiar Link");
+  linkDiv.appendChild(h("span",{style:{fontSize:"11px",color:"#15803D",fontWeight:"600"}},"Link do ERP:"));
+  linkDiv.appendChild(linkText); linkDiv.appendChild(copyLinkBtn);
+  usuBody.appendChild(linkDiv);
+
+  // Cards de usuarios
+  USUARIOS_INFO.forEach(function(u){
+    var rc=ROLES[u.role.toLowerCase()]||{bg:"#F1F5F9",cor:"#374151"};
+    var card=h("div",{style:{border:"1px solid #E2E8F0",borderRadius:"8px",padding:"12px 14px",marginBottom:"8px",display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}},null);
+    
+    // Avatar
+    var av=h("div",{style:{width:"36px",height:"36px",borderRadius:"50%",background:rc.bg||"#F1F5F9",color:rc.cor||"#374151",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"700",flexShrink:"0"}},u.nome.split(" ").map(function(p){return p[0];}).slice(0,2).join(""));
+    card.appendChild(av);
+    
+    // Info
+    var info=h("div",{style:{flex:"1",minWidth:"180px"}},null);
+    info.appendChild(h("div",{style:{fontWeight:"600",fontSize:"13px",color:"#0F172A"}},u.nome));
+    info.appendChild(h("div",{style:{fontSize:"11px",color:"#64748B",marginTop:"1px"}},u.escola));
+    card.appendChild(info);
+    
+    // Credenciais
+    var creds=h("div",{style:{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:"6px",padding:"7px 12px",fontFamily:"monospace",fontSize:"12px",flex:"2",minWidth:"200px"}},null);
+    creds.appendChild(h("div",null,[h("span",{style:{color:"#94A3B8",fontSize:"10px"}},"Email: "),h("span",{style:{color:"#0F172A",fontWeight:"500"}},u.email)]));
+    creds.appendChild(h("div",null,[h("span",{style:{color:"#94A3B8",fontSize:"10px"}},"Senha: "),h("span",{style:{color:"#0F172A",fontWeight:"600"}},u.senha)]));
+    creds.appendChild(h("div",null,[h("span",{style:{color:"#94A3B8",fontSize:"10px"}},"Acesso: "),h("span",{style:{color:rc.cor||"#374151",fontWeight:"500"}},u.role)]));
+    card.appendChild(creds);
+    
+    // Copy button
+    var cpBtn=h("button",{"class":"btn sm",onclick:function(){
+      var texto="ERP Franquia Escolar\nLink: "+window.location.href.split("?")[0]+"\nEmail: "+u.email+"\nSenha: "+u.senha+"\nAcesso: "+u.role+" - "+u.escola;
+      navigator.clipboard.writeText(texto);
+      cpBtn.textContent="Copiado!";
+      setTimeout(function(){cpBtn.innerHTML=S.copy+" Copiar";},2000);
+    }},null);
+    cpBtn.innerHTML=S.copy; cpBtn.appendChild(document.createTextNode(" Copiar")); card.appendChild(cpBtn);
+    usuBody.appendChild(card);
+  });
+  page.appendChild(sec("Usuarios e Acessos",[],usuBody,false));
+
   // PIX Config
+
   var pixGrid=h("div",{"class":"form-grid"},null);
   var fields=[{k:"pixKey",label:"Chave PIX"},{k:"pixTipo",label:"Tipo de Chave"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta Corrente"}];
   fields.forEach(function(f){
@@ -1458,78 +1669,139 @@ function pageConfig(){
 
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function renderLogin(){
-  var ULIST=[
-    {nome:"Admin Franquia",      email:"admin@franquia.com",   role:"admin",      empId:null,av:"AF",cor:"#B91C1C"},
-    {nome:"Carlos - Dir. Alfa",  email:"dir.alfa@escola.com",  role:"diretor",    empId:1,  av:"CS",cor:"#2563EB"},
-    {nome:"Fernanda - Dir. Beta",email:"dir.beta@escola.com",  role:"diretor",    empId:2,  av:"FR",cor:"#15803D"},
-    {nome:"Marcos - Dir. Gama",  email:"dir.gama@escola.com",  role:"diretor",    empId:3,  av:"MO",cor:"#6D28D9"},
-    {nome:"Juliana - Fin. Alfa", email:"fin.alfa@escola.com",  role:"financeiro", empId:1,  av:"JF",cor:"#C2410C"},
-    {nome:"Roberto - Op. Beta",  email:"op.beta@escola.com",   role:"operacional",empId:2,  av:"RO",cor:"#0F766E"},
-  ];
-  var selUser=null;
+  var loginMode="email"; // "email" or "cards"
   var bg=h("div",{"class":"login-bg"},null);
   var box=h("div",{"class":"login-box"},null);
   bg.appendChild(box);
-  box.appendChild(h("div",{style:{textAlign:"center",marginBottom:"16px"}},[
-    h("div",{style:{width:"50px",height:"50px",borderRadius:"12px",background:"#0F172A",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",lineHeight:"0",color:"#fff"}},(function(){var s=document.createElement("span");s.innerHTML=S.hat;return s;})()),
-    h("h1",{style:{fontSize:"16px",fontWeight:"700",color:"#0F172A",margin:"0 0 2px"}},"ERP Franquia Escolar"),
-    h("p",{style:{fontSize:"11px",color:"#64748B",margin:"0"}},"Rede de Ensino - 3 Unidades")
-  ]));
-  box.appendChild(h("p",{style:{fontSize:"10px",fontWeight:"600",color:"#374151",margin:"0 0 7px",textTransform:"uppercase",letterSpacing:".5px"}},"Selecione o usuario"));
 
-  var cards=h("div",null,null);
-  ULIST.forEach(function(u){
-    var rc=ROLES[u.role]||{};
-    var card=h("div",{"class":"user-card",onclick:function(){
-      $$(".user-card",box).forEach(function(c){c.style.borderColor="#E2E8F0";c.style.background="";});
-      card.style.borderColor=u.cor; card.style.background=u.cor+"08";
-      selUser=u; pwdInp.placeholder="Senha"; pwdInp.value=""; pwdInp.focus();
-    }},[
-      h("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:u.cor+"20",display:"flex",alignItems:"center",justifyContent:"center",color:u.cor,fontSize:"10px",fontWeight:"700",flexShrink:"0"}},u.av),
-      h("div",{style:{flex:"1"}},[h("p",{style:{margin:"0",fontSize:"12px",fontWeight:"500",color:"#0F172A"}},u.nome),h("p",{style:{margin:"0",fontSize:"10px",color:"#94A3B8"}},u.email)]),
-      h("span",{style:{background:rc.bg||"#eee",color:rc.cor||"#333",fontSize:"9px",fontWeight:"600",padding:"2px 6px",borderRadius:"10px"}},rc.label||u.role)
-    ]);
-    cards.appendChild(card);
-  });
-  box.appendChild(cards);
+  function buildBox(){
+    box.innerHTML="";
+    // Logo
+    box.appendChild(h("div",{style:{textAlign:"center",marginBottom:"14px"}},[
+      h("div",{style:{width:"48px",height:"48px",borderRadius:"12px",background:"#0F172A",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",lineHeight:"0",color:"#fff"}},(function(){var s=document.createElement("span");s.innerHTML=S.hat;return s;})()),
+      h("h1",{style:{fontSize:"16px",fontWeight:"700",color:"#0F172A",margin:"0 0 2px"}},"ERP Franquia Escolar"),
+      h("p",{style:{fontSize:"11px",color:"#64748B",margin:"0"}},"Rede de Ensino - 3 Unidades")
+    ]));
 
-  var pwdWrap=h("div",{style:{position:"relative",margin:"10px 0 6px"}},null);
-  var pwdInp=h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{paddingRight:"36px",margin:"0",width:"100%"}},null);
-  var eyeBtn=h("button",{style:{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",lineHeight:"0",color:"#94A3B8",padding:"4px"},onclick:function(){
-    pwdInp.type=pwdInp.type==="password"?"text":"password";
-    eyeBtn.innerHTML=pwdInp.type==="password"?S.eye:S.eyeoff;
-  }},null);
-  eyeBtn.innerHTML=S.eye;
-  pwdWrap.appendChild(pwdInp); pwdWrap.appendChild(eyeBtn);
-  var errMsg=h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
-  var loginBtn=h("button",{style:{width:"100%",padding:"10px",borderRadius:"8px",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px"},onclick:function(){
-    errMsg.style.display="none";
-    if(!selUser){errMsg.textContent="Selecione um usuario";errMsg.style.display="block";return;}
-    if(!pwdInp.value){errMsg.textContent="Digite a senha";errMsg.style.display="block";return;}
-    loginBtn.disabled=true; loginBtn.textContent="Entrando...";
-    FA.signInWithEmailAndPassword(selUser.email,pwdInp.value).catch(function(e){
-      loginBtn.disabled=false; loginBtn.innerHTML=S.login; loginBtn.appendChild(document.createTextNode(" Entrar"));
-      var msg="Email ou senha incorretos";
-      if(e.code==="auth/too-many-requests") msg="Muitas tentativas. Aguarde alguns minutos";
-      if(e.code==="auth/network-request-failed") msg="Erro de rede";
-      if(e.code==="auth/unauthorized-domain") msg="Dominio nao autorizado. Adicione "+window.location.hostname+" no Firebase";
-      errMsg.textContent=msg; errMsg.style.display="block";
-    });
-  }},null);
-  loginBtn.innerHTML=S.login; loginBtn.appendChild(document.createTextNode(" Entrar"));
-  pwdInp.addEventListener("keydown",function(e){if(e.key==="Enter")loginBtn.click();});
-  box.appendChild(pwdWrap); box.appendChild(errMsg); box.appendChild(loginBtn);
-  box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"8px"}},"Dados salvos no Firebase - acesse de qualquer dispositivo"));
-  box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"2px"}},"Senhas: Admin=Escola2025 | Alfa2025 | Beta2025 | Gama2025 | Fin2025 | Op2025"));
+    if(loginMode==="email"){
+      // ── EMAIL + SENHA ──────────────────────────────────────────────────────
+      box.appendChild(h("label",{style:{display:"block",fontSize:"10px",fontWeight:"600",color:"#374151",marginBottom:"3px"}},"Email"));
+      var emailInp=h("input",{type:"email",placeholder:"seu.nome@suafranquia.com",style:{marginBottom:"10px"}},null);
+      
+      box.appendChild(emailInp);
+      box.appendChild(h("label",{style:{display:"block",fontSize:"10px",fontWeight:"600",color:"#374151",marginBottom:"3px"}},"Senha"));
+      
+      var pwdWrap=h("div",{style:{position:"relative",marginBottom:"10px"}},null);
+      var pwdInp=h("input",{type:"password",placeholder:"Digite sua senha",style:{paddingRight:"36px",margin:"0",width:"100%"}},null);
+      var eyeBtn=h("button",{style:{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",lineHeight:"0",color:"#94A3B8",padding:"4px"},onclick:function(){
+        pwdInp.type=pwdInp.type==="password"?"text":"password";
+        eyeBtn.innerHTML=pwdInp.type==="password"?S.eye:S.eyeoff;
+      }},null);
+      eyeBtn.innerHTML=S.eye;
+      pwdWrap.appendChild(pwdInp); pwdWrap.appendChild(eyeBtn); box.appendChild(pwdWrap);
+
+      var errMsg=h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
+      var loginBtn=h("button",{style:{width:"100%",padding:"10px",borderRadius:"8px",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px"},onclick:function(){
+        errMsg.style.display="none";
+        var email=emailInp.value.trim();
+        var pwd=pwdInp.value;
+        if(!email){errMsg.textContent="Digite o email";errMsg.style.display="block";return;}
+        if(!pwd){errMsg.textContent="Digite a senha";errMsg.style.display="block";return;}
+        loginBtn.disabled=true; loginBtn.textContent="Entrando...";
+        FA.signInWithEmailAndPassword(email,pwd).catch(function(e){
+          loginBtn.disabled=false; loginBtn.innerHTML=S.login; loginBtn.appendChild(document.createTextNode(" Entrar"));
+          var msg="Email ou senha incorretos";
+          if(e.code==="auth/too-many-requests") msg="Muitas tentativas. Aguarde alguns minutos";
+          if(e.code==="auth/network-request-failed") msg="Erro de rede";
+          if(e.code==="auth/unauthorized-domain") msg="Dominio nao autorizado no Firebase";
+          if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential") msg="Email nao cadastrado ou senha incorreta";
+          errMsg.textContent=msg; errMsg.style.display="block";
+        });
+      }},null);
+      loginBtn.innerHTML=S.login; loginBtn.appendChild(document.createTextNode(" Entrar"));
+      pwdInp.addEventListener("keydown",function(e){if(e.key==="Enter")loginBtn.click();});
+      emailInp.addEventListener("keydown",function(e){if(e.key==="Enter")pwdInp.focus();});
+      box.appendChild(errMsg); box.appendChild(loginBtn);
+
+      // Switch to cards
+      var switchBtn=h("button",{style:{width:"100%",padding:"7px",marginTop:"8px",borderRadius:"8px",background:"none",border:"1px solid #E2E8F0",color:"#64748B",fontSize:"11px",cursor:"pointer"},onclick:function(){loginMode="cards";buildBox();}},null);
+      switchBtn.appendChild(document.createTextNode("Ver lista de usuarios ›"));
+      box.appendChild(switchBtn);
+      box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#CBD5E1",marginTop:"8px"}},"Dados salvos no Firebase - acesse de qualquer dispositivo"));
+
+    } else {
+      // ── LISTA DE USUARIOS (cards) ──────────────────────────────────────────
+      var allUsers = [
+        {nome:"Admin Franquia",      email:"admin@franquia.com",   role:"admin",      empId:null,av:"AF",cor:"#B91C1C"},
+        {nome:"Carlos - Dir. Alfa",  email:"dir.alfa@escola.com",  role:"diretor",    empId:1,  av:"CS",cor:"#2563EB"},
+        {nome:"Fernanda - Dir. Beta",email:"dir.beta@escola.com",  role:"diretor",    empId:2,  av:"FR",cor:"#15803D"},
+        {nome:"Marcos - Dir. Gama",  email:"dir.gama@escola.com",  role:"diretor",    empId:3,  av:"MO",cor:"#6D28D9"},
+        {nome:"Juliana - Fin. Alfa", email:"fin.alfa@escola.com",  role:"financeiro", empId:1,  av:"JF",cor:"#C2410C"},
+        {nome:"Roberto - Op. Beta",  email:"op.beta@escola.com",   role:"operacional",empId:2,  av:"RO",cor:"#0F766E"},
+      ].concat(CUSTOM_USERS.map(function(u){ return Object.assign({},u,{cor:ROLES[u.role]?ROLES[u.role].cor:"#374151"}); }));
+
+      box.appendChild(h("p",{style:{fontSize:"10px",fontWeight:"600",color:"#374151",margin:"0 0 7px",textTransform:"uppercase",letterSpacing:".5px"}},"Selecione o usuario"));
+      var selUser=null;
+      var cards=h("div",{style:{maxHeight:"260px",overflowY:"auto"}},null);
+      allUsers.forEach(function(u){
+        var rc=ROLES[u.role]||{bg:"#F1F5F9",cor:"#374151",label:u.role};
+        var card=h("div",{"class":"user-card",onclick:function(){
+          cards.querySelectorAll(".user-card").forEach(function(c2){c2.style.borderColor="#E2E8F0";c2.style.background="";});
+          card.style.borderColor=u.cor; card.style.background=u.cor+"08";
+          selUser=u; pwdInp2.placeholder="Senha"; pwdInp2.value=""; pwdInp2.focus();
+        }},[
+          h("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:u.cor+"20",display:"flex",alignItems:"center",justifyContent:"center",color:u.cor,fontSize:"10px",fontWeight:"700",flexShrink:"0"}},u.av),
+          h("div",{style:{flex:"1"}},[h("p",{style:{margin:"0",fontSize:"12px",fontWeight:"500",color:"#0F172A"}},u.nome),h("p",{style:{margin:"0",fontSize:"10px",color:"#94A3B8"}},u.email)]),
+          h("span",{style:{background:rc.bg||"#F1F5F9",color:rc.cor||"#374151",fontSize:"9px",fontWeight:"600",padding:"2px 6px",borderRadius:"10px"}},rc.label||u.role)
+        ]);
+        cards.appendChild(card);
+      });
+      box.appendChild(cards);
+
+      var pwdWrap2=h("div",{style:{position:"relative",margin:"10px 0 6px"}},null);
+      var pwdInp2=h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{paddingRight:"36px",margin:"0",width:"100%"}},null);
+      var eyeBtn2=h("button",{style:{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",lineHeight:"0",color:"#94A3B8",padding:"4px"},onclick:function(){
+        pwdInp2.type=pwdInp2.type==="password"?"text":"password";
+        eyeBtn2.innerHTML=pwdInp2.type==="password"?S.eye:S.eyeoff;
+      }},null);
+      eyeBtn2.innerHTML=S.eye;
+      pwdWrap2.appendChild(pwdInp2); pwdWrap2.appendChild(eyeBtn2); box.appendChild(pwdWrap2);
+
+      var errMsg2=h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
+      var loginBtn2=h("button",{style:{width:"100%",padding:"10px",borderRadius:"8px",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px"},onclick:function(){
+        errMsg2.style.display="none";
+        if(!selUser){errMsg2.textContent="Selecione um usuario";errMsg2.style.display="block";return;}
+        if(!pwdInp2.value){errMsg2.textContent="Digite a senha";errMsg2.style.display="block";return;}
+        loginBtn2.disabled=true; loginBtn2.textContent="Entrando...";
+        FA.signInWithEmailAndPassword(selUser.email,pwdInp2.value).catch(function(e){
+          loginBtn2.disabled=false; loginBtn2.innerHTML=S.login; loginBtn2.appendChild(document.createTextNode(" Entrar"));
+          var msg="Email ou senha incorretos";
+          if(e.code==="auth/too-many-requests") msg="Muitas tentativas. Aguarde alguns minutos";
+          errMsg2.textContent=msg; errMsg2.style.display="block";
+        });
+      }},null);
+      loginBtn2.innerHTML=S.login; loginBtn2.appendChild(document.createTextNode(" Entrar"));
+      pwdInp2.addEventListener("keydown",function(e){if(e.key==="Enter")loginBtn2.click();});
+
+      box.appendChild(errMsg2); box.appendChild(loginBtn2);
+      var switchBtn2=h("button",{style:{width:"100%",padding:"7px",marginTop:"8px",borderRadius:"8px",background:"none",border:"1px solid #E2E8F0",color:"#64748B",fontSize:"11px",cursor:"pointer"},onclick:function(){loginMode="email";buildBox();}},null);
+      switchBtn2.appendChild(document.createTextNode("Entrar com email ›"));
+      box.appendChild(switchBtn2);
+    }
+  }
+
+  buildBox();
   return bg;
 }
+
+
 
 // ── FIREBASE AUTH ─────────────────────────────────────────────────────────────
 var _fbReady=true;  // Show login immediately, Firebase will update
 FA.onAuthStateChanged(function(fbUser){
   _fbReady=true;
   if(fbUser){
-    var p=PROF_MAP[fbUser.email]||{nome:fbUser.email,role:"admin",empId:null,av:"AD"};
+    var p=getProfile(fbUser.email)||{nome:fbUser.email.split("@")[0],role:"operacional",empId:1,av:fbUser.email.substring(0,2).toUpperCase()};
     STATE.user=Object.assign({uid:fbUser.uid,email:fbUser.email},p);
     STATE.empId=STATE.user.role==="admin"?0:(STATE.user.empId||1);
     STATE.mod="dash";
