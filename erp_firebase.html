@@ -110,15 +110,12 @@ tr:last-child td{border-bottom:none}
   .form-grid{grid-template-columns:1fr}
 }
 </style>
-</head>
-<body>
-<div id="app"></div>
-
-<!-- Firebase SDK - Google CDN, funciona em todos os navegadores incluindo iOS -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
+</head>
+<body>
+<div id="app"></div>
 <script>
 // ─── GLOBALS ──────────────────────────────────────────────────────────────────
 var $ = function(sel,ctx){ return (ctx||document).querySelector(sel); };
@@ -142,166 +139,6 @@ var frag = function(children){
   [].concat(children||[]).forEach(function(c){ if(c) f.appendChild(typeof c==="string"?document.createTextNode(c):c); });
   return f;
 };
-
-
-// ─── FIREBASE INIT ────────────────────────────────────────────────────────────
-var CFG = {
-  apiKey: "AIzaSyC57PPJT-T-kULbdZU8dR1OOrRELY0S9_Y",
-  authDomain: "erp-franquia-escolar.firebaseapp.com",
-  projectId: "erp-franquia-escolar",
-  storageBucket: "erp-franquia-escolar.firebasestorage.app",
-  messagingSenderId: "881570951200",
-  appId: "1:881570951200:web:4377127f87dac025904c45"
-};
-firebase.initializeApp(CFG);
-var FA = firebase.auth();
-var FS = firebase.firestore();
-FA.languageCode = "pt";
-
-// ─── FIRESTORE OPERATIONS ────────────────────────────────────────────────────
-async function loadAll() {
-  var cols = ["lan","pagar","receber","alunos","cursos","fornecedores","usuarios"];
-  for (var i=0; i<cols.length; i++) {
-    var snap = await FS.collection(cols[i]).get();
-    DB[cols[i]] = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-  }
-}
-
-async function fsAdd(col, data) {
-  var d = Object.assign({}, data); delete d.id;
-  var ref = await FS.collection(col).add(d);
-  d.id = ref.id;
-  if (!DB[col]) DB[col] = [];
-  DB[col].push(d);
-  render();
-}
-
-async function fsSet(col, data) {
-  var id = String(data.id);
-  var d = Object.assign({}, data); delete d.id;
-  await FS.collection(col).doc(id).set(d);
-  var idx = DB[col].findIndex(function(x){ return String(x.id)===id; });
-  if (idx >= 0) DB[col][idx] = Object.assign({id:data.id}, d);
-  render();
-}
-
-async function fsDel(col, id) {
-  await FS.collection(col).doc(String(id)).delete();
-  DB[col] = DB[col].filter(function(x){ return String(x.id)!==String(id); });
-  render();
-}
-
-async function saveItem(col, data) {
-  if (data.id) return fsSet(col, data);
-  return fsAdd(col, data);
-}
-
-// ─── AUTH OPERATIONS ─────────────────────────────────────────────────────────
-async function doLogin(email, pwd) {
-  await FA.signInWithEmailAndPassword(email, pwd);
-  STATE.adminCreds = {email:email, pwd:pwd};
-}
-
-async function doLogout() {
-  await FA.signOut();
-  STATE.user=null; STATE.profile=null; STATE.empId=null; STATE.mod="dash";
-  DB = {lan:[],pagar:[],receber:[],alunos:[],cursos:[],fornecedores:[],usuarios:[]};
-  render();
-}
-
-async function reloginAdmin() {
-  if (STATE.adminCreds) await FA.signInWithEmailAndPassword(STATE.adminCreds.email, STATE.adminCreds.pwd);
-}
-
-async function checkFirstSetup() {
-  // Don't need to check - onAuthStateChanged handles everything
-  STATE.firstSetup = false;
-  STATE.loading = false;
-  render();
-}
-
-async function runSetup(adminPwd, onMsg) {
-  var USERS = [
-    {e:"admin@franquia.com",  p:adminPwd,  role:"admin",      empId:null, nome:"Admin Franquia",  av:"AF"},
-    {e:"dir.alfa@escola.com", p:"Alfa2025", role:"diretor",    empId:1,    nome:"Carlos Souza",    av:"CS"},
-    {e:"dir.beta@escola.com", p:"Beta2025", role:"diretor",    empId:2,    nome:"Fernanda Reis",   av:"FR"},
-    {e:"dir.gama@escola.com", p:"Gama2025", role:"diretor",    empId:3,    nome:"Marcos Oliveira", av:"MO"},
-    {e:"fin.alfa@escola.com", p:"Fin2025",  role:"financeiro", empId:1,    nome:"Juliana Financas",av:"JF"},
-    {e:"op.beta@escola.com",  p:"Op2025",   role:"operacional",empId:2,    nome:"Roberto Op",      av:"RO"},
-  ];
-  var uids = {};
-  onMsg("Criando usuarios ("+USERS.length+")...");
-  for (var i=0; i<USERS.length; i++) {
-    var u = USERS[i];
-    try {
-      var cred = await FA.createUserWithEmailAndPassword(u.e, u.p);
-      uids[u.e] = cred.user.uid;
-      await FA.signOut();
-    } catch(err) {
-      if (err.code==="auth/email-already-in-use") {
-        var sc = await FA.signInWithEmailAndPassword(u.e, u.p);
-        uids[u.e] = sc.user.uid;
-        await FA.signOut();
-      } else { onMsg("Erro: "+err.message); throw err; }
-    }
-  }
-  onMsg("Criando perfis no banco de dados...");
-  for (var i=0; i<USERS.length; i++) {
-    var u=USERS[i];
-    await FS.collection("usuarios").doc(uids[u.e]).set({nome:u.nome,email:u.e,role:u.role,empId:u.empId,av:u.av});
-  }
-  onMsg("Populando dados iniciais...");
-  await seedInitialData();
-  onMsg("Finalizando...");
-  await FA.signInWithEmailAndPassword("admin@franquia.com", adminPwd);
-  STATE.adminCreds = {email:"admin@franquia.com", pwd:adminPwd};
-}
-
-async function seedInitialData() {
-  var NOW2=new Date(); var ANO2=NOW2.getFullYear(); var MES2=NOW2.getMonth()+1;
-  var MS=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  var fBase=[
-    {nome:"Editora Nacional",cnpj:"44.444.444/0001-44",cat:"Material Didatico",tel:"(11)3333-4444",email:"comercial@editora.com",cidade:"Sao Paulo",status:"Ativo",limite:20000},
-    {nome:"Royalties Franquia Matriz",cnpj:"55.555.555/0001-55",cat:"Royalties",tel:"(31)2222-3333",email:"franquia@grupo.com",cidade:"BH",status:"Ativo",limite:20000},
-    {nome:"TechEdu Sistemas",cnpj:"77.777.777/0001-77",cat:"TI e Sistemas",tel:"(11)9999-8888",email:"suporte@techedu.com",cidade:"SP",status:"Ativo",limite:20000},
-    {nome:"Limpeza Total",cnpj:"88.888.888/0001-88",cat:"Servicos Gerais",tel:"(31)6666-7777",email:"contato@limpeza.com",cidade:"Contagem",status:"Ativo",limite:15000},
-  ];
-  var cBase=[
-    {cod:"C001",nome:"Maternal (2-3 anos)",cat:"Ed. Infantil",custo:350,preco:800,un:"mes"},
-    {cod:"C002",nome:"Infantil I (4 anos)",cat:"Ed. Infantil",custo:380,preco:850,un:"mes"},
-    {cod:"C003",nome:"Infantil II (5 anos)",cat:"Ed. Infantil",custo:400,preco:900,un:"mes"},
-    {cod:"C004",nome:"Fundamental I",cat:"Ens. Fund.",custo:450,preco:1000,un:"mes"},
-    {cod:"C005",nome:"Ingles Extra",cat:"Extracurricular",custo:120,preco:280,un:"mes"},
-    {cod:"M001",nome:"Kit Material Didatico",cat:"Material",custo:85,preco:160,un:"un"},
-  ];
-  var nomes=[["Lucas Andrade","Beatriz Costa","Gabriel Silva","Sofia Martins","Pedro Rocha"],["Isabela Lima","Mateus Ferreira","Laura Pereira","Joao Carvalho","Ana Souza"],["Miguel Santos","Julia Oliveira","Rafael Alves","Leticia Nunes","Thiago Castro"]];
-  var turmaL=["Maternal","Infantil I","Infantil II","Fund. I","Fund. II"];
-  var bV={1:[85000,12000,3500,2000,38000,12000,9500,5200,1800,3200,2500],2:[72000,10000,2800,1500,34000,10000,8000,4800,1600,2800,2000],3:[65000,8500,2200,1200,30000,9000,7200,4400,1400,2500,1800]};
-  var CE=["Mensalidades","Matriculas","Atividades Extras","Outras Receitas"];
-  var CS=["Salarios Prof","Salarios Adm","Aluguel","Royalties Franquia","Material Didatico","Energia/Agua","Marketing","Impostos","Despesas Fin","Manutencao","Outras Despesas"];
-  for (var ei=0; ei<3; ei++) {
-    var eid=ei+1;
-    for (var fi=0; fi<fBase.length; fi++) await FS.collection("fornecedores").add(Object.assign({},fBase[fi],{empId:eid}));
-    for (var ci=0; ci<cBase.length; ci++) await FS.collection("cursos").add(Object.assign({},cBase[ci],{empId:eid}));
-    for (var ai=0; ai<5; ai++) await FS.collection("alunos").add({nome:nomes[ei][ai],email:nomes[ei][ai].split(" ")[0].toLowerCase()+"@email.com",tel:"(31) 99999-"+String(1000+ai+ei*10),status:"Ativo",turma:turmaL[ai],mens:800+ai*100,empId:eid});
-    await FS.collection("pagar").add({forn:"Royalties Franquia Matriz",desc:"Royalties "+MS[MES2-1],cat:"Royalties Franquia",valor:bV[eid][3],venc:ANO2+"-"+String(MES2).padStart(2,"0")+"-10",status:"Pendente",empId:eid});
-    await FS.collection("pagar").add({forn:"Locadora ABC",desc:"Aluguel "+MS[MES2-1],cat:"Aluguel",valor:bV[eid][2]*0.1,venc:ANO2+"-"+String(MES2).padStart(2,"0")+"-05",status:"Pago",empId:eid});
-    await FS.collection("pagar").add({forn:"Receita Federal",desc:"DARF Simples Nacional",cat:"Impostos",valor:bV[eid][7],venc:ANO2+"-"+String(MES2).padStart(2,"0")+"-20",status:"Pendente",empId:eid});
-    await FS.collection("receber").add({cliente:nomes[ei][0],desc:"Mensalidade "+MS[MES2-1],valor:900,venc:ANO2+"-"+String(MES2).padStart(2,"0")+"-10",status:"Pendente",tipo:"Boleto",empId:eid});
-    await FS.collection("receber").add({cliente:nomes[ei][1],desc:"Mensalidade "+MS[MES2-1],valor:850,venc:ANO2+"-"+String(MES2).padStart(2,"0")+"-10",status:"Recebido",tipo:"PIX",empId:eid});
-    await FS.collection("receber").add({cliente:nomes[ei][2],desc:"Matricula Anual",valor:1200,venc:ANO2+"-"+String(MES2===1?12:MES2-1).padStart(2,"0")+"-25",status:"Vencido",tipo:"Boleto",empId:eid});
-    for (var m=Math.max(1,MES2-2); m<=MES2; m++) {
-      var mult=1+(m-1)*0.03;
-      for (var i2=0; i2<CE.length && i2<4; i2++) await FS.collection("lan").add({data:ANO2+"-"+String(m).padStart(2,"0")+"-05",desc:CE[i2]+" - "+MS[m-1],cat:CE[i2],tipo:"Entrada",valor:Math.round((bV[eid][i2]||5000)*mult),conc:m<MES2,empId:eid});
-      for (var i3=0; i3<CS.length; i3++) { var idx3=4+i3; if(idx3>=bV[eid].length) continue; await FS.collection("lan").add({data:ANO2+"-"+String(m).padStart(2,"0")+"-10",desc:CS[i3]+" - "+MS[m-1],cat:CS[i3],tipo:"Saida",valor:Math.round((bV[eid][idx3]||3000)*mult),conc:m<MES2,empId:eid}); }
-    }
-  }
-}
-
-
-// ─── STATE ────────────────────────────────────────────────────────────────────
-var STATE = {user:null, empId:null, mod:"dash", modalData:null, loading:true, firstSetup:false, adminCreds:null};
-var DB = {lan:[], pagar:[], receber:[], alunos:[], cursos:[], fornecedores:[], usuarios:[]};
 
 var BRL = function(v){ return "R$ "+((+v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})); };
 var PCT = function(v){ return (((+v||0)*100).toFixed(1))+"%"; };
@@ -424,22 +261,13 @@ function seed(){
 }
 
 // ─── STATE ─────────────────────────────────────────────────────────────────────
-
+var DB = (function(){
+  try{ var s=localStorage.getItem("erp_fra_v5"); return s?JSON.parse(s):seed(); }catch(e){ return seed(); }
+})();
 var STATE = {user:null,empId:null,mod:"dash",modalData:null};
 
-// upd() - syncs to Firebase for deletes
-function upd(col, fn) {
-  var before = DB[col].map(function(x){ return x.id; });
-  DB[col] = fn(DB[col]);
-  var after = DB[col].map(function(x){ return x.id; });
-  // Find deleted items and sync to Firestore
-  before.forEach(function(id) {
-    if (after.indexOf(id) < 0) {
-      FS.collection(col).doc(String(id)).delete().catch(function(e){ console.error("Delete error:", e); });
-    }
-  });
-  render();
-}
+function save(){ try{ localStorage.setItem("erp_fra_v5",JSON.stringify(DB)); }catch(e){} }
+function upd(key,fn){ DB[key]=fn(DB[key]); save(); render(); }
 function setState(patch){ Object.assign(STATE,patch); render(); }
 function maxId(arr){ return arr.length>0?Math.max.apply(null,arr.map(function(x){ return x.id; })):0; }
 
@@ -745,10 +573,7 @@ function pageFinanceiro(){
             {k:"valor",label:"Valor R$",type:"number"},{k:"obs",label:"Obs"},
             {k:"conc",label:"Conciliado com extrato",checkbox:true,full:true}
           ],
-          onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("lan",d);
-    }
+          onSave:function(d){ upd("lan",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.lan)+1})]); }); }
         });
       }},null);
       addBtn.innerHTML=SVGS.plus; addBtn.appendChild(document.createTextNode(" Lancamento"));
@@ -773,10 +598,7 @@ function pageFinanceiro(){
     page.appendChild(secWrap("Lancamentos ("+rows.length+")",
       h("span",{style:{fontSize:"11px",color:"#94A3B8"}},rows.filter(function(r){ return !r.conc; }).length+" nao conciliados"),
       tableWrap(cols,rows,isConsolidado(),
-        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"data",label:"Data",type:"date"},{k:"tipo",label:"Tipo",options:["Entrada","Saida"]},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",options:CENTS.concat(CSAIS),full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"conc",label:"Conciliado",checkbox:true,full:true}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("lan",d);
-    }}); }:null,
+        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"data",label:"Data",type:"date"},{k:"tipo",label:"Tipo",options:["Entrada","Saida"]},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",options:CENTS.concat(CSAIS),full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"conc",label:"Conciliado",checkbox:true,full:true}],onSave:function(d){ upd("lan",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }}); }:null,
         !isConsolidado()?function(id){ upd("lan",function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }:null
       )
     ));
@@ -801,10 +623,7 @@ function pageFornec(){
       var ab=h("button",{"class":"btn",onclick:function(){
         openModal({title:"Novo Fornecedor",init:{status:"Ativo",empId:STATE.empId,limite:10000},
           fields:[{k:"nome",label:"Nome",full:true},{k:"cnpj",label:"CNPJ"},{k:"cat",label:"Categoria",options:["Material Didatico","Royalties","Material Escritorio","TI e Sistemas","Servicos Gerais","Outras"]},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"email"},{k:"cidade",label:"Cidade"},{k:"limite",label:"Limite R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],
-          onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("fornec",d);
-    }
+          onSave:function(d){ upd("fornec",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.fornec)+1})]); }); }
         });
       }},null);
       ab.innerHTML=SVGS.plus; ab.appendChild(document.createTextNode(" Novo")); bar.appendChild(ab);
@@ -813,10 +632,7 @@ function pageFornec(){
     var cols=[{k:"nome",label:"Fornecedor",render:function(v,r){ var d=document.createElement("div"); d.innerHTML='<p style="margin:0;font-weight:500">'+v+'</p><p style="margin:0;font-size:10px;color:#94A3B8">'+r.cnpj+'</p>'; return d; }},{k:"cat",label:"Categoria"},{k:"tel",label:"Telefone",nowrap:true},{k:"email",label:"Email"},{k:"cidade",label:"Cidade"},{k:"limite",label:"Limite",r:true,render:BRL},{k:"status",label:"Status",render:function(v){ return badge(v); }}];
     page.appendChild(secWrap("Fornecedores ("+rows.length+")",null,
       tableWrap(cols,rows,isConsolidado(),
-        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"cnpj",label:"CNPJ"},{k:"cat",label:"Categoria",options:["Material Didatico","Royalties","Material Escritorio","TI e Sistemas","Servicos Gerais","Outras"]},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"email"},{k:"cidade",label:"Cidade"},{k:"limite",label:"Limite R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("fornec",d);
-    }}); }:null,
+        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"cnpj",label:"CNPJ"},{k:"cat",label:"Categoria",options:["Material Didatico","Royalties","Material Escritorio","TI e Sistemas","Servicos Gerais","Outras"]},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"email"},{k:"cidade",label:"Cidade"},{k:"limite",label:"Limite R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:function(d){ upd("fornec",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }}); }:null,
         !isConsolidado()?function(id){ upd("fornec",function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }:null
       )
     ));
@@ -846,18 +662,12 @@ function makePagarReceber(isSai){
         if(isSai){
           openModal({title:"Nova Conta a Pagar",init:{status:"Pendente",empId:STATE.empId},
             fields:[{k:"forn",label:"Fornecedor",options:fnames(),full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"cat",label:"Categoria",options:["Royalties Franquia","Aluguel","Material Didatico","Impostos","Salarios Prof","Marketing","Outras"]},{k:"status",label:"Status",options:["Pendente","Pago","Vencido"]}],
-            onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("pagar",d);
-    }
+            onSave:function(d){ upd("pagar",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.pagar)+1})]); }); }
           });
         } else {
           openModal({title:"Nova Conta a Receber",init:{status:"Pendente",tipo:"Boleto",empId:STATE.empId},
             fields:[{k:"cliente",label:"Aluno/Resp.",full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"tipo",label:"Forma",options:["Boleto","PIX","Cartao","Transferencia"]},{k:"status",label:"Status",options:["Pendente","Recebido","Vencido"]}],
-            onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("receber",d);
-    }
+            onSave:function(d){ upd("receber",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.receber)+1})]); }); }
           });
         }
       }},null);
@@ -870,14 +680,8 @@ function makePagarReceber(isSai){
     page.appendChild(secWrap((isSai?"Contas a Pagar":"Contas a Receber")+" ("+rows.length+")",null,
       tableWrap(cols,rows,isConsolidado(),
         !isConsolidado()?function(row){
-          if(isSai) openModal({title:"Editar",init:row,fields:[{k:"forn",label:"Fornecedor",options:fnames(),full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"cat",label:"Categoria",options:["Royalties Franquia","Aluguel","Material Didatico","Impostos","Salarios Prof","Marketing","Outras"]},{k:"status",label:"Status",options:["Pendente","Pago","Vencido"]}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("pagar",d);
-    }});
-          else openModal({title:"Editar",init:row,fields:[{k:"cliente",label:"Cliente",full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"tipo",label:"Forma",options:["Boleto","PIX","Cartao","Transferencia"]},{k:"status",label:"Status",options:["Pendente","Recebido","Vencido"]}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("receber",d);
-    }});
+          if(isSai) openModal({title:"Editar",init:row,fields:[{k:"forn",label:"Fornecedor",options:fnames(),full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"cat",label:"Categoria",options:["Royalties Franquia","Aluguel","Material Didatico","Impostos","Salarios Prof","Marketing","Outras"]},{k:"status",label:"Status",options:["Pendente","Pago","Vencido"]}],onSave:function(d){ upd("pagar",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }});
+          else openModal({title:"Editar",init:row,fields:[{k:"cliente",label:"Cliente",full:true},{k:"desc",label:"Descricao",full:true},{k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"tipo",label:"Forma",options:["Boleto","PIX","Cartao","Transferencia"]},{k:"status",label:"Status",options:["Pendente","Recebido","Vencido"]}],onSave:function(d){ upd("receber",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }});
         }:null,
         !isConsolidado()?function(id){ upd(key,function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }:null
       )
@@ -903,10 +707,7 @@ function pageAlunos(){
     var sw=searchInput(search,function(v){ search=v; rebuild(); }); bar.appendChild(sw);
     bar.appendChild(filterBar(["Todos","Ativo","Inativo"],filtro,"#6D28D9",function(v){ filtro=v; rebuild(); }));
     if(!isConsolidado()){
-      var ab=h("button",{"class":"btn",onclick:function(){ openModal({title:"Novo Aluno",init:{status:"Ativo",mens:800,empId:STATE.empId},fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"tel",label:"Telefone"},{k:"turma",label:"Turma",options:turmaL},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("alunos",d);
-    }}); }},null);
+      var ab=h("button",{"class":"btn",onclick:function(){ openModal({title:"Novo Aluno",init:{status:"Ativo",mens:800,empId:STATE.empId},fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"tel",label:"Telefone"},{k:"turma",label:"Turma",options:turmaL},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:function(d){ upd("alunos",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.alunos)+1})]); }); }}); }},null);
       ab.innerHTML=SVGS.plus; ab.appendChild(document.createTextNode(" Novo Aluno")); bar.appendChild(ab);
     }
     page.appendChild(bar);
@@ -918,10 +719,7 @@ function pageAlunos(){
     ];
     page.appendChild(secWrap("Alunos ("+rows.length+")",null,
       tableWrap(cols,rows,isConsolidado(),
-        !isConsolidado()?function(row){ openModal({title:"Editar Aluno",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"tel",label:"Telefone"},{k:"turma",label:"Turma",options:turmaL},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("alunos",d);
-    }}); }:null,
+        !isConsolidado()?function(row){ openModal({title:"Editar Aluno",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"tel",label:"Telefone"},{k:"turma",label:"Turma",options:turmaL},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"status",label:"Status",options:["Ativo","Inativo"]}],onSave:function(d){ upd("alunos",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }}); }:null,
         !isConsolidado()?function(id){ upd("alunos",function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }:null
       )
     ));
@@ -938,20 +736,14 @@ function pageCursos(){
     var bar=h("div",{"class":"filters"},null);
     var sw=searchInput(search,function(v){ search=v; rebuild(); }); bar.appendChild(sw);
     if(!isConsolidado()){
-      var ab=h("button",{"class":"btn",onclick:function(){ openModal({title:"Novo Curso",init:{un:"mes",empId:STATE.empId},fields:[{k:"cod",label:"Codigo"},{k:"nome",label:"Nome",full:true},{k:"cat",label:"Categoria",options:["Ed. Infantil","Ens. Fund.","Extracurricular","Material","Outros"]},{k:"un",label:"Unidade",options:["mes","un","hr","kit"]},{k:"custo",label:"Custo R$",type:"number"},{k:"preco",label:"Preco/Mes R$",type:"number"}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("cursos",d);
-    }}); }},null);
+      var ab=h("button",{"class":"btn",onclick:function(){ openModal({title:"Novo Curso",init:{un:"mes",empId:STATE.empId},fields:[{k:"cod",label:"Codigo"},{k:"nome",label:"Nome",full:true},{k:"cat",label:"Categoria",options:["Ed. Infantil","Ens. Fund.","Extracurricular","Material","Outros"]},{k:"un",label:"Unidade",options:["mes","un","hr","kit"]},{k:"custo",label:"Custo R$",type:"number"},{k:"preco",label:"Preco/Mes R$",type:"number"}],onSave:function(d){ upd("cursos",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.cursos)+1})]); }); }}); }},null);
       ab.innerHTML=SVGS.plus; ab.appendChild(document.createTextNode(" Novo")); bar.appendChild(ab);
     }
     page.appendChild(bar);
     var cols=[{k:"cod",label:"Cod.",render:function(v){ return v||""; }},{k:"nome",label:"Curso"},{k:"cat",label:"Categoria"},{k:"custo",label:"Custo",r:true,render:BRL},{k:"preco",label:"Preco/Mes",r:true,render:function(v){ var s=document.createElement("span"); s.style.fontWeight="600"; s.textContent=BRL(v); return s; }},{k:"preco",label:"Margem",r:true,render:function(v,r){ if(!r.custo) return "--"; var s=document.createElement("span"); s.style.color="#15803D"; s.style.fontWeight="500"; s.textContent=PCT((v-r.custo)/v); return s; }}];
     page.appendChild(secWrap("Cursos e Produtos ("+rows.length+")",null,
       tableWrap(cols,rows,isConsolidado(),
-        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"cod",label:"Codigo"},{k:"nome",label:"Nome",full:true},{k:"cat",label:"Categoria",options:["Ed. Infantil","Ens. Fund.","Extracurricular","Material","Outros"]},{k:"un",label:"Unidade",options:["mes","un","hr","kit"]},{k:"custo",label:"Custo R$",type:"number"},{k:"preco",label:"Preco/Mes R$",type:"number"}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("cursos",d);
-    }}); }:null,
+        !isConsolidado()?function(row){ openModal({title:"Editar",init:row,fields:[{k:"cod",label:"Codigo"},{k:"nome",label:"Nome",full:true},{k:"cat",label:"Categoria",options:["Ed. Infantil","Ens. Fund.","Extracurricular","Material","Outros"]},{k:"un",label:"Unidade",options:["mes","un","hr","kit"]},{k:"custo",label:"Custo R$",type:"number"},{k:"preco",label:"Preco/Mes R$",type:"number"}],onSave:function(d){ upd("cursos",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }}); }:null,
         !isConsolidado()?function(id){ upd("cursos",function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }:null
       )
     ));
@@ -1036,10 +828,7 @@ function pageUsers(){
   var ab=h("button",{"class":"btn",onclick:function(){
     openModal({title:"Novo Usuario",init:{role:"operacional",senha:"1234"},
       fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"senha",label:"Senha",type:"password"},{k:"role",label:"Cargo",options:[{value:"admin",label:"Admin Franquia"},{value:"diretor",label:"Diretor(a)"},{value:"financeiro",label:"Financeiro"},{value:"operacional",label:"Operacional"}]},{k:"empId",label:"Escola",options:[{value:"",label:"Todas"},{value:1,label:"Escola Alfa"},{value:2,label:"Escola Beta"},{value:3,label:"Escola Gama"}]},{k:"av",label:"Avatar (2 iniciais)"}],
-      onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsAdd("usuarios",d);
-    }
+      onSave:function(d){ upd("usuarios",function(arr){ return arr.concat([Object.assign(d,{id:maxId(DB.usuarios)+1})]); }); }
     });
   }},null);
   ab.innerHTML=SVGS.plus; ab.appendChild(document.createTextNode(" Novo Usuario")); addBtn.appendChild(ab);
@@ -1051,10 +840,7 @@ function pageUsers(){
   ];
   page.appendChild(secWrap("Usuarios ("+DB.usuarios.length+")",null,
     tableWrap(cols,DB.usuarios,false,
-      function(row){ openModal({title:"Editar",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"role",label:"Cargo",options:[{value:"admin",label:"Admin Franquia"},{value:"diretor",label:"Diretor(a)"},{value:"financeiro",label:"Financeiro"},{value:"operacional",label:"Operacional"}]},{k:"empId",label:"Escola",options:[{value:"",label:"Todas"},{value:1,label:"Escola Alfa"},{value:2,label:"Escola Beta"},{value:3,label:"Escola Gama"}]},{k:"av",label:"Avatar"}],onSave:async function(d){
-      if(!d.empId && STATE.empId!==0) d.empId=STATE.empId;
-      await fsSet("usuarios",d);
-    }}); },
+      function(row){ openModal({title:"Editar",init:row,fields:[{k:"nome",label:"Nome",full:true},{k:"email",label:"Email",type:"email"},{k:"role",label:"Cargo",options:[{value:"admin",label:"Admin Franquia"},{value:"diretor",label:"Diretor(a)"},{value:"financeiro",label:"Financeiro"},{value:"operacional",label:"Operacional"}]},{k:"empId",label:"Escola",options:[{value:"",label:"Todas"},{value:1,label:"Escola Alfa"},{value:2,label:"Escola Beta"},{value:3,label:"Escola Gama"}]},{k:"av",label:"Avatar"}],onSave:function(d){ upd("usuarios",function(arr){ return arr.map(function(x){ return x.id===d.id?d:x; }); }); }}); },
       function(id){ upd("usuarios",function(arr){ return arr.filter(function(x){ return x.id!==id; }); }); }
     )
   ));
@@ -1219,206 +1005,161 @@ function render(){
 }
 
 
+// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+var FB_APP = firebase.initializeApp({
+  apiKey: "AIzaSyC57PPJT-T-kULbdZU8dR1OOrRELY0S9_Y",
+  authDomain: "erp-franquia-escolar.firebaseapp.com",
+  projectId: "erp-franquia-escolar",
+  storageBucket: "erp-franquia-escolar.firebasestorage.app",
+  messagingSenderId: "881570951200",
+  appId: "1:881570951200:web:4377127f87dac025904c45"
+});
+var FB_AUTH = firebase.auth();
+var FB_DB   = firebase.firestore();
+FB_AUTH.languageCode = "pt";
 
-async function runSetupWithAdmin(existingAdminUid, onMsg) {
-  onMsg("Criando perfil do admin...");
-  var adminUid = existingAdminUid || (FA.currentUser ? FA.currentUser.uid : null);
-  if (!adminUid) {
-    throw new Error("Admin nao esta logado. Faca login primeiro.");
+// Override render() to check Firebase auth state first
+var _appReady = false;
+var _fbUser = null;
+
+FB_AUTH.onAuthStateChanged(function(user) {
+  _fbUser = user;
+  if (!_appReady) { _appReady = true; }
+  // Sync user info into STATE
+  if (user) {
+    // Try to get profile from Firestore
+    FB_DB.collection("usuarios").doc(user.uid).get().then(function(doc) {
+      if (doc.exists) {
+        var p = doc.data();
+        STATE.user = {id: user.uid, nome: p.nome||"Admin", email: user.email, role: p.role||"admin", empresaId: p.empId||null, av: p.av||"AD"};
+        STATE.empId = STATE.user.role === "admin" ? 0 : (STATE.user.empresaId||1);
+      } else {
+        // No profile yet - treat as admin
+        STATE.user = {id: user.uid, nome: "Admin Franquia", email: user.email, role: "admin", empresaId: null, av: "AF"};
+        STATE.empId = 0;
+      }
+      STATE.mod = "dash";
+      render();
+    }).catch(function(e) {
+      // Firestore error - still let them in as admin
+      STATE.user = {id: user.uid, nome: "Admin Franquia", email: user.email, role: "admin", empresaId: null, av: "AF"};
+      STATE.empId = 0;
+      STATE.mod = "dash";
+      render();
+    });
+  } else {
+    STATE.user = null;
+    render();
   }
-  // Create admin profile in Firestore
-  await FS.collection("usuarios").doc(adminUid).set({
-    nome:"Admin Franquia", email:"admin@franquia.com",
-    role:"admin", empId:null, av:"AF"
-  });
+});
 
-  // Create other users
-  var OUTROS = [
-    {e:"dir.alfa@escola.com", p:"Alfa2025", role:"diretor",    empId:1, nome:"Carlos Souza",     av:"CS"},
-    {e:"dir.beta@escola.com", p:"Beta2025", role:"diretor",    empId:2, nome:"Fernanda Reis",    av:"FR"},
-    {e:"dir.gama@escola.com", p:"Gama2025", role:"diretor",    empId:3, nome:"Marcos Oliveira",  av:"MO"},
-    {e:"fin.alfa@escola.com", p:"Fin2025",  role:"financeiro", empId:1, nome:"Juliana Financas", av:"JF"},
-    {e:"op.beta@escola.com",  p:"Op2025",   role:"operacional",empId:2, nome:"Roberto Op",       av:"RO"},
+// ─── FIREBASE LOGIN SCREEN ────────────────────────────────────────────────────
+function renderFirebaseLogin() {
+  var selEmail = null;
+  var ULIST = [
+    {nome:"Admin Franquia",      email:"admin@franquia.com",    role:"admin",       cor:"#B91C1C", av:"AF"},
+    {nome:"Carlos - Dir. Alfa",  email:"dir.alfa@escola.com",   role:"diretor",     cor:"#2563EB", av:"CS"},
+    {nome:"Fernanda - Dir. Beta",email:"dir.beta@escola.com",   role:"diretor",     cor:"#15803D", av:"FR"},
+    {nome:"Marcos - Dir. Gama",  email:"dir.gama@escola.com",   role:"diretor",     cor:"#6D28D9", av:"MO"},
+    {nome:"Juliana - Fin. Alfa", email:"fin.alfa@escola.com",   role:"financeiro",  cor:"#C2410C", av:"JF"},
+    {nome:"Roberto - Op. Beta",  email:"op.beta@escola.com",    role:"operacional", cor:"#0F766E", av:"RO"},
   ];
+  var bg = h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A",padding:"16px"}},null);
+  var box = h("div",{style:{background:"#fff",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"420px"}},null);
+  bg.appendChild(box);
 
-  // Sign out to create other users
-  var adminCred = FA.currentUser ? {email:FA.currentUser.email} : null;
-  await FA.signOut();
+  box.appendChild(h("div",{style:{textAlign:"center",marginBottom:"16px"}},[
+    h("div",{style:{fontSize:"36px",margin:"0 0 6px"}},"🏫"),
+    h("h1",{style:{fontSize:"16px",fontWeight:"700",color:"#0F172A",margin:"0 0 2px"}},"ERP Franquia Escolar"),
+    h("p",{style:{fontSize:"11px",color:"#64748B",margin:"0"}},"Rede de Ensino - 3 Unidades")
+  ]));
 
-  for (var i=0; i<OUTROS.length; i++) {
-    var u = OUTROS[i];
-    onMsg("Criando usuario "+(i+2)+"/6: "+u.nome+"...");
-    try {
-      var cred = await FA.createUserWithEmailAndPassword(u.e, u.p);
-      await FS.collection("usuarios").doc(cred.user.uid).set({
-        nome:u.nome, email:u.e, role:u.role, empId:u.empId, av:u.av
-      });
-      await FA.signOut();
-    } catch(err) {
-      if (err.code !== "auth/email-already-in-use") throw err;
-    }
-  }
+  box.appendChild(h("p",{style:{fontSize:"10px",fontWeight:"600",color:"#374151",margin:"0 0 7px",textTransform:"uppercase",letterSpacing:".5px"}},"Selecione o usuario"));
 
-  onMsg("Populando dados iniciais das escolas...");
-  await seedInitialData();
+  var cards = h("div",null,null);
+  ULIST.forEach(function(u) {
+    var rc = ROLES[u.role]||{bg:"#eee",cor:"#333",label:u.role};
+    var card = h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"7px 10px",borderRadius:"8px",cursor:"pointer",border:"1.5px solid #E2E8F0",marginBottom:"5px"},onclick:function(){
+      cards.querySelectorAll("div[data-card]").forEach(function(c){ c.style.borderColor="#E2E8F0"; c.style.background=""; });
+      card.style.borderColor=u.cor; card.style.background=u.cor+"08";
+      selEmail=u.email;
+      pwdInp.placeholder="Digite a senha";
+      pwdInp.focus();
+    }},[
+      h("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:u.cor+"20",display:"flex",alignItems:"center",justifyContent:"center",color:u.cor,fontSize:"10px",fontWeight:"700",flexShrink:"0"}},u.av),
+      h("div",{style:{flex:"1"}},[
+        h("p",{style:{margin:"0",fontSize:"12px",fontWeight:"500",color:"#0F172A"}},u.nome),
+        h("p",{style:{margin:"0",fontSize:"10px",color:"#94A3B8"}},u.email)
+      ]),
+      h("span",{style:{background:rc.bg||"#eee",color:rc.cor||"#333",fontSize:"9px",fontWeight:"600",padding:"2px 6px",borderRadius:"10px"}},rc.label||u.role)
+    ]);
+    card.setAttribute("data-card","1");
+    cards.appendChild(card);
+  });
+  box.appendChild(cards);
 
-  onMsg("Entrando como Admin...");
-  // Re-login as admin is not possible without password
-  // Just update state directly since we have the UID
-  STATE.user = {uid:adminUid, nome:"Admin Franquia", email:"admin@franquia.com", role:"admin", empId:null, av:"AF"};
-  STATE.empId = 0;
-  STATE.firstSetup = false;
-  STATE._pendingUser = null;
-  await loadAll();
-  STATE.mod = "dash";
-  onMsg("Pronto!");
+  var pwdInp = h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{margin:"10px 0 6px"}},null);
+  var errMsg = h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
+  var loginBtn = h("button",{style:{width:"100%",padding:"9px",borderRadius:"8px",border:"none",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer"},onclick:function(){
+    errMsg.style.display="none";
+    if(!selEmail){ errMsg.textContent="Selecione um usuario acima"; errMsg.style.display="block"; return; }
+    if(!pwdInp.value){ errMsg.textContent="Digite a senha"; errMsg.style.display="block"; return; }
+    loginBtn.disabled=true; loginBtn.textContent="Entrando...";
+    FB_AUTH.signInWithEmailAndPassword(selEmail, pwdInp.value).catch(function(e){
+      loginBtn.disabled=false; loginBtn.textContent="Entrar";
+      var msg = "Senha incorreta";
+      if (e.code==="auth/user-not-found") msg="Usuario nao encontrado no Firebase. Execute a configuracao inicial.";
+      else if (e.code==="auth/too-many-requests") msg="Muitas tentativas. Aguarde alguns minutos.";
+      else if (e.code==="auth/network-request-failed") msg="Erro de rede. Verifique sua conexao.";
+      else if (e.code==="auth/unauthorized-domain") msg="Dominio nao autorizado. Adicione "+window.location.hostname+" no Firebase Authentication.";
+      errMsg.textContent=msg; errMsg.style.display="block";
+    });
+  }},"Entrar");
+
+  pwdInp.addEventListener("keydown",function(e){ if(e.key==="Enter") loginBtn.click(); });
+  box.appendChild(pwdInp); box.appendChild(errMsg); box.appendChild(loginBtn);
+  box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"8px"}},"Dados salvos no Firebase - acesse de qualquer dispositivo"));
+  box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"4px"}},"Senhas: Admin=sua senha | Alfa=Alfa2025 | Beta=Beta2025 | Gama=Gama2025 | Fin=Fin2025 | Op=Op2025"));
+  return bg;
 }
 
-// ─── SETUP WIZARD ────────────────────────────────────────────────────────────
-function renderSetup() {
-  var msg = h("p",{style:{fontSize:"12px",color:"#2563EB",marginTop:"10px",minHeight:"16px"}},STATE.setupMsg||"");
-  var inp = h("input",{type:"password",placeholder:"Crie uma senha para o Admin (ex: Admin@2025)",style:{marginBottom:"8px"}},null);
-  var btn = h("button",{style:{width:"100%",padding:"10px",borderRadius:"8px",border:"none",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer"},onclick:async function(){
-    if(!inp.value||inp.value.length<6){alert("Senha precisa ter pelo menos 6 caracteres!"); return;}
-    btn.disabled=true; btn.textContent="Configurando... aguarde";
-    try {
-      await runSetup(inp.value, function(m){ STATE.setupMsg=m; var mg=document.getElementById("setup-msg"); if(mg) mg.textContent=m; });
-    } catch(e) {
-      btn.disabled=false; btn.textContent="Tentar novamente";
-      alert("Erro na configuracao: "+e.message+"\n\nVerifique se o Authentication esta ativado no Firebase Console.");
-    }
-  }},"Configurar Sistema");
-  
-  return h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A",padding:"16px"}},
-    h("div",{style:{background:"#fff",borderRadius:"16px",padding:"28px",width:"100%",maxWidth:"480px"}},
-      [
-        h("div",{style:{textAlign:"center",marginBottom:"20px"}},[
-          h("div",{style:{fontSize:"32px",margin:"0 0 8px"}},"🏫"),
-          h("h1",{style:{fontSize:"18px",fontWeight:"700",color:"#0F172A",margin:"0 0 4px"}},"Primeira Configuracao"),
-          h("p",{style:{fontSize:"12px",color:"#64748B",margin:"0"}},"Login realizado! Agora vamos configurar o sistema.")
-        ]),
-        h("div",{style:{background:"#F0FDF4",border:"1px solid #DCFCE7",borderRadius:"8px",padding:"12px 14px",marginBottom:"16px"}},
-          h("p",{style:{margin:"0 0 8px",fontSize:"12px",fontWeight:"600",color:"#15803D"}},"Usuarios que serao criados automaticamente:"),
-          h("table",{style:{width:"100%",fontSize:"11px",borderCollapse:"collapse"}},
-            h("tbody",null,[
-              ["admin@franquia.com","Admin (senha: a que voce criar)","Franquia"],
-              ["dir.alfa@escola.com","Diretor Alfa — senha: Alfa2025","Alfa"],
-              ["dir.beta@escola.com","Diretora Beta — senha: Beta2025","Beta"],
-              ["dir.gama@escola.com","Diretor Gama — senha: Gama2025","Gama"],
-              ["fin.alfa@escola.com","Financeiro Alfa — senha: Fin2025","Alfa"],
-              ["op.beta@escola.com","Operacional Beta — senha: Op2025","Beta"],
-            ].map(function(row){
-              return h("tr",null,[
-                h("td",{style:{padding:"3px 0",color:"#15803D",fontWeight:"500"}},row[0]),
-                h("td",{style:{padding:"3px 8px",color:"#374151"}},row[1]),
-              ]);
-            }))
-          )
-        ),
-        h("div",{style:{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}},
-          h("p",{style:{margin:"0",fontSize:"11px",color:"#92400E"}},"⚠️ ANTES DE CONTINUAR: Confirme que o Authentication (E-mail/senha) esta ativado no Firebase Console → Seguranca → Authentication → Metodos de login → E-mail/senha → Ativado")
-        ),
-        h("div",{style:{background:"#DBEAFE",border:"1px solid #93C5FD",borderRadius:"8px",padding:"10px 12px",marginBottom:"12px"}},
-          h("p",{style:{margin:"0",fontSize:"12px",color:"#1D4ED8"}},"Logado como: admin@franquia.com ✓")
-        ),
-        h("p",{id:"setup-msg",style:{fontSize:"12px",color:"#2563EB",margin:"0 0 8px",minHeight:"18px"}},STATE.setupMsg||""),
-        btn,
-        h("p",{style:{textAlign:"center",fontSize:"10px",color:"#94A3B8",marginTop:"8px"}},"Pode demorar 30-60 segundos — aguarde")
-      ]
-    )
-  );
-}
 
-function renderLoading() {
-  return h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A"}},
-    h("div",{style:{textAlign:"center",color:"#fff"}},
-      [h("div",{style:{fontSize:"40px",margin:"0 0 12px"}},"🔄"),
-       h("p",{style:{fontSize:"14px",color:"#94A3B8"}},"Carregando...")]
-    )
-  );
-}
-
-// Override render() to handle Firebase auth states
-var _originalRender = render;
+// ─── PATCH RENDER TO USE FIREBASE AUTH ───────────────────────────────────────
+var _origRender = render;
 render = function() {
   var root = document.getElementById("app");
   if (!root) return;
   root.innerHTML = "";
-  if (STATE.loading) { root.appendChild(renderLoading()); return; }
-  if (STATE.firstSetup) { root.appendChild(renderSetup()); return; }
-  if (!STATE.user) { root.appendChild(renderFirebaseLogin()); return; }
-  var appEl = renderMainApp();
-  root.appendChild(appEl);
-  var modal = buildModal();
-  if (modal) root.appendChild(modal);
-};
-
-function renderFirebaseLogin() {
-  var ULIST = [
-    {nome:"Admin Franquia",   email:"admin@franquia.com",    role:"admin",       cor:"#B91C1C", hint:"senha que voce criou"},
-    {nome:"Carlos - Dir. Alfa",email:"dir.alfa@escola.com",  role:"diretor",     cor:"#2563EB", hint:"Alfa2025"},
-    {nome:"Fernanda - Dir. Beta",email:"dir.beta@escola.com",role:"diretor",     cor:"#15803D", hint:"Beta2025"},
-    {nome:"Marcos - Dir. Gama",email:"dir.gama@escola.com",  role:"diretor",     cor:"#6D28D9", hint:"Gama2025"},
-    {nome:"Juliana - Fin. Alfa",email:"fin.alfa@escola.com", role:"financeiro",  cor:"#C2410C", hint:"Fin2025"},
-    {nome:"Roberto - Op. Beta", email:"op.beta@escola.com",  role:"operacional", cor:"#0F766E", hint:"Op2025"},
-  ];
-  var selEmail = null;
-  var bg = h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A",padding:"16px"}},null);
-  var box = h("div",{style:{background:"#fff",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"420px"}},null);
-  bg.appendChild(box);
   
-  var logoDiv = h("div",{style:{textAlign:"center",marginBottom:"18px"}},[
-    h("div",{style:{fontSize:"36px"}},"🏫"),
-    h("h1",{style:{fontSize:"16px",fontWeight:"700",color:"#0F172A",margin:"4px 0 2px"}},"ERP Franquia Escolar"),
-    h("p",{style:{fontSize:"11px",color:"#64748B",margin:"0"}},"Rede de Ensino - 3 Unidades")
-  ]);
-  box.appendChild(logoDiv);
-  box.appendChild(h("p",{style:{fontSize:"10px",fontWeight:"600",color:"#374151",marginBottom:"7px",textTransform:"uppercase",letterSpacing:".5px"}},"Selecione o usuario"));
+  // Show loading while Firebase auth initializes
+  if (!_appReady) {
+    root.appendChild(h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A"}},
+      h("div",{style:{textAlign:"center",color:"#fff"}},[
+        h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"🔄"),
+        h("p",{style:{fontSize:"14px",color:"#94A3B8"}},"Carregando...")
+      ])
+    ));
+    return;
+  }
   
-  var cards = h("div",null,null);
-  ULIST.forEach(function(u) {
-    var rc = ROLES[u.role]||{};
-    var card = h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"7px 10px",borderRadius:"8px",cursor:"pointer",border:"1.5px solid #E2E8F0",marginBottom:"5px"},onclick:function(){
-      $$(".login-ucard").forEach(function(c){ c.style.borderColor="#E2E8F0"; c.style.background=""; });
-      card.style.borderColor=u.cor; card.style.background=u.cor+"08";
-      selEmail=u.email;
-      pwdInp.placeholder="Senha ("+u.hint+")";
-      pwdInp.value="";
-    }},[
-      h("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:u.cor+"20",display:"flex",alignItems:"center",justifyContent:"center",color:u.cor,fontSize:"9px",fontWeight:"700",flexShrink:"0"}},u.nome.split(" ").slice(0,2).map(function(p){return p[0];}).join("")),
-      h("div",{style:{flex:"1"}},
-        [h("p",{style:{margin:"0",fontSize:"12px",fontWeight:"500",color:"#0F172A"}},u.nome),
-         h("p",{style:{margin:"0",fontSize:"10px",color:"#94A3B8"}},u.email)]
-      ),
-      h("span",{style:{background:rc.bg||"#eee",color:rc.cor||"#333",fontSize:"9px",fontWeight:"600",padding:"2px 6px",borderRadius:"10px"}},rc.label||u.role)
-    ]);
-    card.className="login-ucard";
-    cards.appendChild(card);
-  });
-  box.appendChild(cards);
+  // Not logged into Firebase
+  if (!_fbUser) {
+    root.appendChild(renderFirebaseLogin());
+    return;
+  }
   
-  var pwdInp = h("input",{type:"password",placeholder:"Selecione um usuario acima",style:{margin:"10px 0 6px"}},null);
-  var errMsg = h("p",{style:{color:"#B91C1C",fontSize:"11px",marginBottom:"6px",display:"none"}},"");
-  var loginBtn = h("button",{style:{width:"100%",padding:"9px",borderRadius:"8px",border:"none",background:"#0F172A",color:"#fff",fontSize:"13px",fontWeight:"600",cursor:"pointer"},onclick:async function(){
-    if(!selEmail){errMsg.textContent="Selecione um usuario"; errMsg.style.display="block"; return;}
-    if(!pwdInp.value){errMsg.textContent="Digite a senha"; errMsg.style.display="block"; return;}
-    loginBtn.disabled=true; loginBtn.textContent="Entrando...";
-    try {
-      await doLogin(selEmail, pwdInp.value);
-    } catch(e) {
-      loginBtn.disabled=false; loginBtn.textContent="Entrar";
-      errMsg.textContent="Senha incorreta"; errMsg.style.display="block";
-    }
-  }},"Entrar");
+  // Firebase says logged in but STATE.user not set yet (loading profile)
+  if (!STATE.user) {
+    root.appendChild(h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A"}},
+      h("div",{style:{textAlign:"center",color:"#fff"}},[
+        h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"🔄"),
+        h("p",{style:{fontSize:"14px",color:"#94A3B8"}},"Carregando perfil...")
+      ])
+    ));
+    return;
+  }
   
-  box.appendChild(pwdInp);
-  box.appendChild(errMsg);
-  box.appendChild(loginBtn);
-  box.appendChild(h("p",{style:{textAlign:"center",fontSize:"9px",color:"#94A3B8",marginTop:"8px"}},"Dados salvos no Firebase - acesse de qualquer dispositivo"));
-  return bg;
-}
-
-function renderMainApp() {
+  // Render the full app
   var perm = ROLES[STATE.user.role] ? ROLES[STATE.user.role].mods : [];
   var empresa = STATE.empId===0 ? FRANQUIA : EMPRESAS.find(function(e){ return e.id===STATE.empId; })||FRANQUIA;
   var u = STATE.user;
@@ -1440,7 +1181,6 @@ function renderMainApp() {
                    filtEmp(DB.receber).filter(function(r){ return r.status==="Vencido"; }).length;
 
   var aside = h("aside",{"class":"sidebar"},null);
-
   var sbLogo = h("div",{"class":"sb-logo",onclick:function(){ aside.classList.toggle("closed"); }},null);
   var menuIco = h("span",{style:{lineHeight:"0",color:"#94A3B8",flexShrink:"0"}},null); menuIco.innerHTML=SVGS.menu;
   sbLogo.appendChild(menuIco);
@@ -1451,11 +1191,7 @@ function renderMainApp() {
     var sbUnit=h("div",{"class":"sb-unit"},null);
     sbUnit.appendChild(h("div",{"class":"sb-unit-lbl"},"Unidade"));
     [FRANQUIA].concat(EMPRESAS).forEach(function(e){
-      var item=h("div",{"class":"sb-unit-item"+(STATE.empId===e.id?" active":""),onclick:async function(){
-        STATE.empId=e.id; STATE.mod="dash"; STATE.loading=true; render();
-        await loadAll();
-        STATE.loading=false; render();
-      }},null);
+      var item=h("div",{"class":"sb-unit-item"+(STATE.empId===e.id?" active":""),onclick:function(){ STATE.empId=e.id; STATE.mod="dash"; render(); }},null);
       item.appendChild(h("div",{"class":"sb-unit-dot",style:{background:e.cor}},null));
       item.appendChild(h("span",{"class":"sb-unit-name"},e.nome));
       sbUnit.appendChild(item);
@@ -1477,11 +1213,13 @@ function renderMainApp() {
 
   var sbUser=h("div",{"class":"sb-user"},null);
   var uRow=h("div",{"class":"sb-user-row"},null);
-  uRow.appendChild(h("div",{"class":"sb-avatar",style:{background:rc.bg,color:rc.cor}},u.av||"?"));
-  var uInfo=h("div",null,[h("div",{"class":"sb-user-name"},u.nome),h("div",{"class":"sb-user-role"},rc.label)]);
-  var logBtn=h("button",{style:{color:"#475569",lineHeight:"0",padding:"3px"},onclick:function(){ doLogout(); },title:"Sair"},null);
+  uRow.appendChild(h("div",{"class":"sb-avatar",style:{background:rc.bg||"#eee",color:rc.cor||"#333"}},u.av||"?"));
+  uRow.appendChild(h("div",null,[h("div",{"class":"sb-user-name"},u.nome),h("div",{"class":"sb-user-role"},rc.label||u.role)]));
+  var logBtn=h("button",{style:{color:"#475569",lineHeight:"0",padding:"3px"},onclick:function(){
+    FB_AUTH.signOut().then(function(){ STATE.user=null; STATE.empId=null; _fbUser=null; render(); });
+  },title:"Sair"},null);
   logBtn.innerHTML=SVGS.logout;
-  uRow.appendChild(uInfo); uRow.appendChild(logBtn); sbUser.appendChild(uRow); aside.appendChild(sbUser);
+  uRow.appendChild(logBtn); sbUser.appendChild(uRow); aside.appendChild(sbUser);
 
   var main=h("div",{"class":"main"},null);
   var header=h("div",{"class":"header"},null);
@@ -1497,58 +1235,16 @@ function renderMainApp() {
   var pageEl=(PAGES[STATE.mod]||pageDash)();
   main.appendChild(pageEl);
 
-  var app=h("div",{"class":"app"},null);
-  app.appendChild(aside); app.appendChild(main);
-  return app;
-}
-
-// ─── OVERRIDE CRUD IN PAGES TO USE FIREBASE ───────────────────────────────────
-// All pages that call upd() need to use saveItem/fsDel instead
-// We patch this by overriding the modal onSave and onDel callbacks
-
-var _origOpenModal = openModal;
-openModal = function(data) {
-  if (data.onSave) {
-    var origSave = data.onSave;
-    data.onSave = async function(d) {
-      if (!d.empId && STATE.empId !== 0) d.empId = STATE.empId;
-      await saveItem(data._collection || "lan", d);
-    };
-    data._origSave = origSave;
-  }
-  STATE.modalData = data;
-  render();
+  var app2=h("div",{"class":"app"},null);
+  app2.appendChild(aside); app2.appendChild(main);
+  root.appendChild(app2);
+  
+  var modal=buildModal();
+  if(modal) root.appendChild(modal);
 };
 
-// ─── FIREBASE AUTH LISTENER ───────────────────────────────────────────────────
-FA.onAuthStateChanged(async function(fbUser) {
-  if (fbUser) {
-    STATE.loading = true; render();
-    try {
-      var profDoc = await FS.collection("usuarios").doc(fbUser.uid).get();
-      if (profDoc.exists) {
-        STATE.user = Object.assign({uid:fbUser.uid}, profDoc.data());
-        STATE.empId = STATE.user.role==="admin" ? 0 : (STATE.user.empId || 1);
-        await loadAll();
-        STATE.loading = false; STATE.mod = "dash"; render();
-      } else {
-        // Profile doesn't exist yet — first login, create admin profile + run setup
-        STATE.setupMsg = "";
-        STATE.loading = false;
-        STATE.firstSetup = true;
-        STATE._pendingUser = fbUser;
-        render();
-      }
-    } catch(e) {
-      console.error("Load error:", e);
-      STATE.loading = false; render();
-    }
-  } else {
-    STATE.loading = false;
-    STATE.firstSetup = false;
-    render();
-  }
-});
+// Initial render while waiting for Firebase
+render();
 </script>
 </body>
 </html>
