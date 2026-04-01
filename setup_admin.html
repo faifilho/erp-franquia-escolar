@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar Admin - ERP Franquia</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0F172A;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:380px}
+h1{font-size:17px;font-weight:700;color:#0F172A;text-align:center;margin:0 0 4px}
+p.sub{font-size:12px;color:#64748B;text-align:center;margin:0 0 20px}
+label{display:block;font-size:11px;font-weight:600;color:#374151;margin-bottom:4px}
+input{width:100%;height:38px;padding:0 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;margin-bottom:12px;outline:none}
+input:focus{border-color:#2563EB}
+button{width:100%;padding:11px;border-radius:8px;border:none;background:#0F172A;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.5}
+.msg{border-radius:8px;padding:10px 14px;font-size:12px;margin-top:10px;display:none;line-height:1.5}
+.err{background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C}
+.ok{background:#F0FDF4;border:1px solid #DCFCE7;color:#15803D;font-weight:500}
+.step{font-size:12px;color:#64748B;text-align:center;margin-bottom:14px;padding:8px;background:#F8FAFC;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div style="font-size:32px;text-align:center;margin-bottom:8px">🏫</div>
+  <h1>Criar Admin do ERP</h1>
+  <p class="sub">Passo único — execute uma vez</p>
+  <div class="step">Este arquivo cria o usuario admin e voce define a senha agora mesmo</div>
+
+  <label>Senha do Admin (minimo 6 caracteres)</label>
+  <input type="password" id="pwd1" placeholder="Ex: Escola2025" />
+
+  <label>Confirme a senha</label>
+  <input type="password" id="pwd2" placeholder="Repita a senha" />
+
+  <button id="btn" onclick="criar()">Criar Admin e Entrar</button>
+
+  <div class="msg err" id="err"></div>
+  <div class="msg ok" id="ok"></div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyC57PPJT-T-kULbdZU8dR1OOrRELY0S9_Y",
+  authDomain:"erp-franquia-escolar.firebaseapp.com",
+  projectId:"erp-franquia-escolar",
+  storageBucket:"erp-franquia-escolar.firebasestorage.app",
+  messagingSenderId:"881570951200",
+  appId:"1:881570951200:web:4377127f87dac025904c45"
+});
+var FA = firebase.auth();
+
+async function criar() {
+  var p1 = document.getElementById("pwd1").value;
+  var p2 = document.getElementById("pwd2").value;
+  var err = document.getElementById("err");
+  var ok  = document.getElementById("ok");
+  var btn = document.getElementById("btn");
+  err.style.display="none"; ok.style.display="none";
+
+  if (!p1 || p1.length < 6) { err.textContent="Senha precisa ter pelo menos 6 caracteres!"; err.style.display="block"; return; }
+  if (p1 !== p2) { err.textContent="As senhas nao coincidem! Verifique e tente novamente."; err.style.display="block"; return; }
+
+  btn.disabled=true; btn.textContent="Criando...";
+
+  try {
+    // Create the admin user
+    await FA.createUserWithEmailAndPassword("admin@franquia.com", p1);
+    ok.innerHTML = "✅ Admin criado com sucesso!<br>Senha: <strong>" + p1 + "</strong><br><br>Guarde essa senha! Redirecionando para o ERP...";
+    ok.style.display="block";
+    // Store password hint in localStorage
+    localStorage.setItem("erp_admin_pwd_hint", p1.substring(0,3) + "***");
+    setTimeout(function(){ window.location.href="erp_firebase.html"; }, 3000);
+  } catch(e) {
+    if (e.code === "auth/email-already-in-use") {
+      err.innerHTML = "❌ O usuario admin ja existe!<br><br>Va ao Firebase Console → Authentication → exclua o usuario admin@franquia.com e tente novamente.";
+    } else if (e.code === "auth/weak-password") {
+      err.textContent = "❌ Senha muito fraca. Use pelo menos 6 caracteres com letras e numeros.";
+    } else if (e.code === "auth/unauthorized-domain") {
+      err.innerHTML = "❌ Dominio nao autorizado.<br>Adicione <strong>" + window.location.hostname + "</strong> em Firebase → Authentication → Configuracoes → Dominios autorizados.";
+    } else {
+      err.textContent = "❌ Erro: " + (e.code || e.message);
+    }
+    err.style.display="block";
+    btn.disabled=false;
+    btn.textContent="Tentar Novamente";
+  }
+}
+
+document.addEventListener("keydown", function(e){ if(e.key==="Enter") criar(); });
+</script>
+</body>
+</html>
