@@ -268,6 +268,7 @@ var TURMAS=["Maternal","Infantil I","Infantil II","Fund. I","Fund. II","Fund. II
 
 // ── PROFILES MAP ──────────────────────────────────────────────────────────────
 var PROF_MAP = {
+  "ffilho@schoolofrock.com": {nome:"Admin Franquia",   role:"admin",      empId:null, av:"FF"},
   "admin@franquia.com":   {nome:"Admin Franquia",      role:"admin",      empId:null, av:"AF"},
   "dir.alfa@escola.com":  {nome:"Carlos Souza",         role:"diretor",    empId:1,    av:"CS"},
   "dir.beta@escola.com":  {nome:"Fernanda Reis",        role:"diretor",    empId:2,    av:"FR"},
@@ -296,23 +297,37 @@ function getProfile(email){
 // ── STATE & DATA ──────────────────────────────────────────────────────────────
 var STATE={user:null,empId:null,mod:"dash",modal:null,loteSelected:{}};
 var DB=(function(){
-  try{var s=localStorage.getItem("erp_v6");return s?JSON.parse(s):null;}catch(e){return null;}
+  try{
+    var s=localStorage.getItem("erp_v6");
+    if(s){
+      var parsed=JSON.parse(s);
+      // Validate that it has required keys
+      if(parsed && parsed.pagar && parsed.receber) return parsed;
+    }
+  }catch(e){}
+  return null;
 })();
-if(!DB) DB=seedDB();
+if(!DB){ DB=seedDB(); saveDB(); }
 function saveDB(){ try{localStorage.setItem("erp_v6",JSON.stringify(DB));}catch(e){} }
 
 function maxId(arr){ return arr&&arr.length>0?Math.max.apply(null,arr.map(function(x){return +x.id||0;})):0; }
 function fEmp(arr){ return STATE.empId===0?arr:(arr||[]).filter(function(x){return x.empId===STATE.empId;}); }
+function canEdit(){ return !isConsolidado(); }
+function canDelete(){ return STATE.user && STATE.user.role==="admin"; }
 function isConsolidado(){ return STATE.empId===0; }
 
 function upd(key,fn){
-  DB[key]=fn(DB[key]||[]);
-  saveDB();
+  try {
+    DB[key]=fn(DB[key]||[]);
+    saveDB();
+  } catch(e) { console.error("upd error:", key, e); }
   render();
 }
 
 // ── SEED DATA ─────────────────────────────────────────────────────────────────
 function seedDB(){
+  // Limpa qualquer dado antigo corrompido
+  try { localStorage.removeItem("erp_v6"); } catch(e){}
   var db={pagar:[],receber:[],clientes:[],fornec:[],alunos:[],cursos:[],fluxo:[],config:{}};
   var fBase=[
     {nome:"Editora Nacional",cnpj:"44.444.444/0001-44",tipo:"Fornecedor",cat:"Material Didatico",tel:"(11)3333-4444",email:"comercial@editora.com",cidade:"Sao Paulo",estado:"SP",status:"Ativo",banco:"",agencia:"",conta:"",limite:20000},
@@ -570,7 +585,11 @@ function buildModal(){
   var body=h("div",{"class":"modal-body"},null);
   var foot=h("div",{"class":"modal-foot"},null);
   var cancelBtn=h("button",{"class":"btn",onclick:closeModal},"Cancelar"); foot.appendChild(cancelBtn);
-  var saveBtn=h("button",{"class":"btn primary",onclick:function(){if(m.onSave)m.onSave(Object.assign({},form));closeModal();}},null);
+  var saveBtn=h("button",{"class":"btn primary",onclick:function(){
+    if(!m.onSave){closeModal();return;}
+    try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); }
+    if(!m.async) closeModal();
+  }},null);
   var si=h("span",{style:{lineHeight:"0",display:"inline-flex",alignItems:"center",gap:"4px"}},null);
   si.innerHTML=S.check; si.appendChild(document.createTextNode(" Salvar")); saveBtn.appendChild(si); foot.appendChild(saveBtn);
   box.appendChild(head); box.appendChild(body); box.appendChild(foot);
@@ -909,7 +928,7 @@ function pagePagar(){
         {k:"forn",label:"Fornecedor",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
     page.appendChild(secEl);
   }
@@ -1021,7 +1040,7 @@ function pageReceber(){
         {k:"cliente",label:"Cliente",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
     page.appendChild(secEl);
   }
@@ -1032,8 +1051,9 @@ function pageReceber(){
 function pageClientes(){
   var search=""; var tab="Clientes"; var filtroStatus="Todos";
   var page=h("div",{"class":"page"},null);
-  function getRows(){ var key=tab==="Clientes"?"clientes":"fornec";
-    return fEmp(DB[key]).filter(function(r){return (filtroStatus==="Todos"||r.status===filtroStatus)&&(search===""||r.nome.toLowerCase().includes(search)||(r.cnpjCpf||r.cnpj||"").includes(search));});
+  function getDbKey(){ return tab==="Clientes"?"clientes":"fornec"; }
+  function getRows(){ 
+    return fEmp(DB[getDbKey()]).filter(function(r){return (filtroStatus==="Todos"||r.status===filtroStatus)&&(search===""||r.nome.toLowerCase().includes(search)||(r.cnpjCpf||r.cnpj||"").includes(search));});
   }
   function rebuild(){
     page.innerHTML="";
@@ -1055,7 +1075,6 @@ function pageClientes(){
     bar.appendChild(searchBar(search,function(v){search=v.toLowerCase();rebuild();},"Buscar por nome ou CPF/CNPJ..."));
     bar.appendChild(ftabs(["Todos","Ativo","Inativo"],filtroStatus,"#6D28D9",function(v){filtroStatus=v;rebuild();}));
     if(!isConsolidado()){
-      var key=tab==="Clientes"?"clientes":"fornec";
       var addBtn=h("button",{"class":"btn primary",onclick:function(){
         openModal({title:"Novo "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:{status:"Ativo",empId:STATE.empId,tipo:tab==="Clientes"?"Cliente":"Fornecedor"},fields:[
           {k:"nome",label:"Nome / Razao Social",req:true,full:true},
@@ -1063,10 +1082,10 @@ function pageClientes(){
           {k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"text"},
           {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
           {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"tags",label:"Tags (separe por virgula, ex: vip, professor, parceiro)"},{k:"obs",label:"Observacoes",type:"textarea",full:true}
-        ],onSave:function(d){upd(key,function(arr){return arr.concat([Object.assign(d,{id:maxId(DB[key])+1})]);});rebuild();}});
+        ],onSave:function(d){upd(getDbKey(),function(arr){return arr.concat([Object.assign(d,{id:maxId(DB[getDbKey()])+1})]);});rebuild();}});
       }},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
-      var impBtn=h("button",{"class":"btn",onclick:function(){importCSV(function(rows2){var criados=0;rows2.forEach(function(row){if(!row.nome)return;DB[key].push(Object.assign({status:"Ativo",empId:STATE.empId,tipo:tab==="Clientes"?"Cliente":"Fornecedor",obs:"",banco:"",agencia:"",conta:"",cidade:"",estado:""},row,{id:maxId(DB[key])+1}));criados++;});saveDB();rebuild();alert(criados+" registros importados!");});}},null);
+      var impBtn=h("button",{"class":"btn",onclick:function(){importCSV(function(rows2){var criados=0;rows2.forEach(function(row){if(!row.nome)return;DB[getDbKey()].push(Object.assign({status:"Ativo",empId:STATE.empId,tipo:tab==="Clientes"?"Cliente":"Fornecedor",obs:"",banco:"",agencia:"",conta:"",cidade:"",estado:""},row,{id:maxId(DB[getDbKey()])+1}));criados++;});saveDB();rebuild();alert(criados+" registros importados!");});}},null);
       impBtn.innerHTML=S.upload; impBtn.appendChild(document.createTextNode(" Importar CSV")); bar.appendChild(impBtn);
       var expBtn=h("button",{"class":"btn",onclick:function(){exportCSV((tab==="Clientes"?"clientes":"fornecedores")+".csv",rows);}},null);
       expBtn.innerHTML=S.dl; expBtn.appendChild(document.createTextNode(" Exportar")); bar.appendChild(expBtn);
@@ -1089,15 +1108,15 @@ function pageClientes(){
       }},
       {k:"status",label:"Status",w:"70px",render:function(v){return badge(v);}},
     ];
-    var secKey=tab==="Clientes"?"clientes":"fornec";
+    
     page.appendChild(sec(tab+" ("+rows.length+")",[],tbl(cols,rows,{
       showEmp:isConsolidado(),
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:Object.assign({},row),fields:[
         {k:"nome",label:"Nome",full:true},{k:"cnpjCpf",label:"CNPJ/CPF"},{k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
         {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
         {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"obs",label:"Obs",type:"textarea",full:true}
-      ],onSave:function(d){upd(secKey,function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd(secKey,function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      ],onSave:function(d){upd(getDbKey(),function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
+      onDel:canDelete()?function(id){upd(getDbKey(),function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }),false));
   }
   rebuild(); return page;
@@ -1131,7 +1150,7 @@ function pageFluxo(){
       var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Incluir Lancamento",data:{tipo:"Entrada",data:today(),empId:STATE.empId,conta:"Conta Principal",conc:false},fields:[
         {k:"data",label:"Data",type:"date",req:true},{k:"tipo",label:"Tipo",type:"select",options:["Entrada","Saida"],req:true},
         {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},
-        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"conta",label:"Conta",type:"select",options:["Conta Principal","Caixa","Poupanca"]},
+        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"conta",label:"Conta",type:"select",options:(function(){ var base=["Conta Principal","Caixa","Poupanca"]; var cb=(DB.contasBancarias||[]).filter(function(x){return x.empId===STATE.empId;}); return base.concat(cb.map(function(x){return x.banco+" - "+x.conta;})); })()},
         {k:"conc",label:"Conciliado com extrato",type:"checkbox"},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("fluxo",function(arr){return arr.concat([Object.assign(d,{id:maxId(DB.fluxo)+1})]);});rebuild();}});}},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
@@ -1153,10 +1172,10 @@ function pageFluxo(){
       showEmp:isConsolidado(),
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar Lancamento",data:Object.assign({},row),fields:[
         {k:"data",label:"Data",type:"date"},{k:"tipo",label:"Tipo",type:"select",options:["Entrada","Saida"]},{k:"desc",label:"Descricao",full:true},
-        {k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},{k:"valor",label:"Valor R$",type:"number"},{k:"conta",label:"Conta",type:"select",options:["Conta Principal","Caixa","Poupanca"]},
+        {k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},{k:"valor",label:"Valor R$",type:"number"},{k:"conta",label:"Conta",type:"select",options:(function(){ var base=["Conta Principal","Caixa","Poupanca"]; var cb=(DB.contasBancarias||[]).filter(function(x){return x.empId===STATE.empId;}); return base.concat(cb.map(function(x){return x.banco+" - "+x.conta;})); })()},
         {k:"conc",label:"Conciliado",type:"checkbox"},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("fluxo",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd("fluxo",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){upd("fluxo",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }),false));
   }
   rebuild(); return page;
@@ -1224,7 +1243,7 @@ function pageAlunos(){
         {k:"turma",label:"Turma",type:"select",options:TURMAS},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
         {k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("alunos",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd("alunos",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){upd("alunos",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }),false));
   }
   rebuild(); return page;
@@ -1259,7 +1278,7 @@ function pageCursos(){
     page.appendChild(sec("Cursos e Produtos ("+r.length+")",[],tbl(cols,r,{
       showEmp:isConsolidado(),
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar",data:Object.assign({},row),fields:[{k:"cod",label:"Codigo"},{k:"nome",label:"Nome",full:true},{k:"cat",label:"Categoria"},{k:"un",label:"Unidade",type:"select",options:["mes","un","hr","kit"]},{k:"custo",label:"Custo R$",type:"number"},{k:"preco",label:"Preco R$",type:"number"},{k:"obs",label:"Descricao",type:"textarea",full:true}],onSave:function(d){upd("cursos",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
-      onDel:!isConsolidado()?function(id){upd("cursos",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){upd("cursos",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }),false));
   }
   rebuild(); return page;
