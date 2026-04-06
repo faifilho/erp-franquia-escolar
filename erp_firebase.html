@@ -587,8 +587,8 @@ function buildModal(){
   var cancelBtn=h("button",{"class":"btn",onclick:closeModal},"Cancelar"); foot.appendChild(cancelBtn);
   var saveBtn=h("button",{"class":"btn primary",onclick:function(){
     if(!m.onSave){closeModal();return;}
+    if(!m.async) STATE.modal=null;
     try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); }
-    if(!m.async) closeModal();
   }},null);
   var si=h("span",{style:{lineHeight:"0",display:"inline-flex",alignItems:"center",gap:"4px"}},null);
   si.innerHTML=S.check; si.appendChild(document.createTextNode(" Salvar")); saveBtn.appendChild(si); foot.appendChild(saveBtn);
@@ -663,8 +663,7 @@ function buildModal(){
     cnpjSearchBtn.appendChild(ico("globe","#2563EB",11));
     cnpjSearchBtn.appendChild(document.createTextNode(" Buscar CNPJ na Receita Federal"));
     cnpjMsgRow.appendChild(cnpjMsg); cnpjMsgRow.appendChild(cnpjSearchBtn);
-    // Insert before grid
-    body.insertBefore(cnpjMsgRow, grid);
+    body.appendChild(cnpjMsgRow);
   }
   body.appendChild(grid);
   if(m.extra) body.appendChild(m.extra);
