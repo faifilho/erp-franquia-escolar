@@ -1078,7 +1078,7 @@ function pageClientes(){
       var addBtn=h("button",{"class":"btn primary",onclick:function(){
         openModal({title:"Novo "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:{status:"Ativo",empId:STATE.empId,tipo:tab==="Clientes"?"Cliente":"Fornecedor"},fields:[
           {k:"nome",label:"Nome / Razao Social",req:true,full:true},
-          {k:"cnpjCpf",label:"CNPJ / CPF (digite e clique Buscar)",onChange:function(v,f2){if(v.replace(/[^0-9]/g,"").length===14){buscarCNPJ(v,f2,grid);}}},{k:"tipo",label:"Tipo",type:"select",options:["Cliente","Fornecedor","Cliente e Fornecedor"]},
+          {k:"cnpjCpf",label:"CNPJ / CPF (digite e clique Buscar)"},{k:"tipo",label:"Tipo",type:"select",options:["Cliente","Fornecedor","Cliente e Fornecedor"]},
           {k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email",type:"text"},
           {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
           {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"tags",label:"Tags (separe por virgula, ex: vip, professor, parceiro)"},{k:"obs",label:"Observacoes",type:"textarea",full:true}
@@ -1444,7 +1444,7 @@ function pageConfig(){
     wrap.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"12px"}},"Adicione usuarios com o email da franquia (ex: dgandra@schoolofrock.com). O sistema criara a conta no Firebase automaticamente."));
     
     var addBtn2=h("button",{"class":"btn primary",style:{marginBottom:"14px"},onclick:function(){
-      openModal({title:"Novo Usuario",data:{role:"diretor",empId:1},fields:[
+      openModal({title:"Novo Usuario",data:{role:"diretor",empId:1},async:true,fields:[
         {k:"nome",label:"Nome completo",req:true,full:true},
         {k:"email",label:"Email (ex: dgandra@schoolofrock.com)",req:true,full:true},
         {k:"senha",label:"Senha inicial (minimo 6 caracteres)",req:true},
