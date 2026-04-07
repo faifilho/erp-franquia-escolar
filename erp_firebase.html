@@ -587,7 +587,7 @@ function buildModal(){
   var cancelBtn=h("button",{"class":"btn",onclick:closeModal},"Cancelar"); foot.appendChild(cancelBtn);
   var saveBtn=h("button",{"class":"btn primary",onclick:function(){
     if(!m.onSave){closeModal();return;}
-    if(!m.async) STATE.modal=null;
+    if(!m.async){ STATE.modal=null; try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); } render(); return; }
     try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); }
   }},null);
   var si=h("span",{style:{lineHeight:"0",display:"inline-flex",alignItems:"center",gap:"4px"}},null);
@@ -711,6 +711,12 @@ function registrarLote(key,dtPag,forma){
     });
   });
   STATE.loteSelected={};
+}
+
+// ── CONTAS OPTS HELPER ────────────────────────────────────────────────────────
+function getContasOpts(empId){
+  var cadastradas=(DB.contasBancarias||[]).filter(function(c){return c.empId===(empId||STATE.empId);}).map(function(c){return c.banco+(c.conta?" - "+c.conta:"");});
+  return cadastradas.length ? cadastradas : ["Conta Principal","Caixa","Poupanca"];
 }
 
 // ── PAGES ─────────────────────────────────────────────────────────────────────
@@ -883,7 +889,7 @@ function pagePagar(){
       var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Nova Conta a Pagar",data:{status:"Pendente",venc:addDias(10),dtPag:"",empId:STATE.empId,parcelas:1},fields:[
         {k:"forn",label:"Fornecedor",req:true,full:true,type:"select",options:(DB.fornec||[]).filter(function(f){return f.empId===STATE.empId;}).map(function(f){return f.nome;})},
         {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma de Pagamento",type:"select",options:FORMAS_PG},
-        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"venc",label:"Vencimento",type:"date",req:true},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},
+        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"venc",label:"Vencimento",type:"date",req:true},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},
         {k:"parcelas",label:"Parcelas",type:"number"},{k:"obs",label:"Observacao",type:"textarea",full:true}
       ],onSave:function(d){upd("pagar",function(arr){return arr.concat([Object.assign(d,{id:maxId(DB.pagar)+1})]);});rebuild();}});}},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
@@ -925,7 +931,7 @@ function pagePagar(){
       }:null,
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
         {k:"forn",label:"Fornecedor",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
-        {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"obs",label:"Obs",type:"textarea",full:true}
+        {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
       onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
@@ -967,7 +973,7 @@ function pageReceber(){
         {k:"cliente",label:"Cliente / Aluno",req:true,full:true},{k:"desc",label:"Descricao",req:true,full:true},
         {k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma de Recebimento",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number",req:true},{k:"venc",label:"Vencimento",type:"date",req:true},
-        {k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"obs",label:"Observacao",type:"textarea",full:true}
+        {k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Observacao",type:"textarea",full:true}
       ],onSave:function(d){upd("receber",function(arr){return arr.concat([Object.assign(d,{id:maxId(DB.receber)+1})]);});rebuild();}});}},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
 
@@ -1037,7 +1043,7 @@ function pageReceber(){
       }:null,
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar Conta a Receber",data:Object.assign({},row),fields:[
         {k:"cliente",label:"Cliente",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
-        {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"obs",label:"Obs",type:"textarea",full:true}
+        {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
       onDel:canDelete()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
@@ -1149,7 +1155,7 @@ function pageFluxo(){
       var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Incluir Lancamento",data:{tipo:"Entrada",data:today(),empId:STATE.empId,conta:"Conta Principal",conc:false},fields:[
         {k:"data",label:"Data",type:"date",req:true},{k:"tipo",label:"Tipo",type:"select",options:["Entrada","Saida"],req:true},
         {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},
-        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"conta",label:"Conta",type:"select",options:(function(){ var base=["Conta Principal","Caixa","Poupanca"]; var cb=(DB.contasBancarias||[]).filter(function(x){return x.empId===STATE.empId;}); return base.concat(cb.map(function(x){return x.banco+" - "+x.conta;})); })()},
+        {k:"valor",label:"Valor R$",type:"number",req:true},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},
         {k:"conc",label:"Conciliado com extrato",type:"checkbox"},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("fluxo",function(arr){return arr.concat([Object.assign(d,{id:maxId(DB.fluxo)+1})]);});rebuild();}});}},null);
       addBtn.innerHTML=S.plus; addBtn.appendChild(document.createTextNode(" Incluir")); bar.appendChild(addBtn);
@@ -1171,7 +1177,7 @@ function pageFluxo(){
       showEmp:isConsolidado(),
       onEdit:!isConsolidado()?function(row){openModal({title:"Editar Lancamento",data:Object.assign({},row),fields:[
         {k:"data",label:"Data",type:"date"},{k:"tipo",label:"Tipo",type:"select",options:["Entrada","Saida"]},{k:"desc",label:"Descricao",full:true},
-        {k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},{k:"valor",label:"Valor R$",type:"number"},{k:"conta",label:"Conta",type:"select",options:(function(){ var base=["Conta Principal","Caixa","Poupanca"]; var cb=(DB.contasBancarias||[]).filter(function(x){return x.empId===STATE.empId;}); return base.concat(cb.map(function(x){return x.banco+" - "+x.conta;})); })()},
+        {k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR.concat(CATS_RECEBER)},{k:"valor",label:"Valor R$",type:"number"},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},
         {k:"conc",label:"Conciliado",type:"checkbox"},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("fluxo",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});}:null,
       onDel:canDelete()?function(id){upd("fluxo",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
