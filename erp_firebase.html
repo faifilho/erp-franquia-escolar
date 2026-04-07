@@ -9,6 +9,7 @@
 <title>ERP Franquia Escolar</title>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;font-size:13px;background:#F1F5F9;color:#111;overflow:hidden}
@@ -202,6 +203,8 @@ var FB = firebase.initializeApp({
   appId:"1:881570951200:web:4377127f87dac025904c45"
 });
 var FA = firebase.auth();
+var FS = firebase.firestore();
+var DB_REF = FS.collection("erp_data").doc("main");
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 var $ = function(s,c){ return (c||document).querySelector(s); };
@@ -296,19 +299,34 @@ function getProfile(email){
 
 // ── STATE & DATA ──────────────────────────────────────────────────────────────
 var STATE={user:null,empId:null,mod:"dash",modal:null,loteSelected:{}};
-var DB=(function(){
-  try{
-    var s=localStorage.getItem("erp_v6");
-    if(s){
-      var parsed=JSON.parse(s);
-      // Validate that it has required keys
-      if(parsed && parsed.pagar && parsed.receber) return parsed;
-    }
-  }catch(e){}
-  return null;
-})();
-if(!DB){ DB=seedDB(); saveDB(); }
-function saveDB(){ try{localStorage.setItem("erp_v6",JSON.stringify(DB));}catch(e){} }
+var DB=null;
+var _dbReady=false;
+
+function saveDB(){
+  try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
+  DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.error("Firestore save error:",e); });
+}
+
+// Escuta mudancas em tempo real — qualquer dispositivo que salvar atualiza todos
+DB_REF.onSnapshot(function(doc){
+  if(doc.exists){ DB=doc.data(); }
+  else {
+    // Tenta migrar localStorage antigo, senao cria seed
+    try{ var s=localStorage.getItem("erp_v6"); var p=s?JSON.parse(s):null; DB=(p&&p.pagar)?p:seedDB(); }
+    catch(e){ DB=seedDB(); }
+    DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.error(e);});
+  }
+  _dbReady=true;
+  render();
+}, function(err){
+  console.error("Firestore offline:",err);
+  if(!_dbReady){
+    try{ var s2=localStorage.getItem("erp_v6"); var p2=s2?JSON.parse(s2):null; DB=(p2&&p2.pagar)?p2:seedDB(); }
+    catch(e2){ DB=seedDB(); }
+    _dbReady=true;
+    render();
+  }
+});
 
 function maxId(arr){ return arr&&arr.length>0?Math.max.apply(null,arr.map(function(x){return +x.id||0;})):0; }
 function fEmp(arr){ return STATE.empId===0?arr:(arr||[]).filter(function(x){return x.empId===STATE.empId;}); }
@@ -1841,9 +1859,12 @@ function render(){
   if(!root) return;
   root.innerHTML="";
 
-  if(!_fbReady){
+  if(!_fbReady||!_dbReady){
     root.appendChild(h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A"}},
-      h("div",{style:{textAlign:"center",color:"#94A3B8",fontSize:"14px"}},"Carregando...")
+      h("div",{style:{textAlign:"center"}},[
+        h("div",{style:{color:"#94A3B8",fontSize:"14px",marginBottom:"8px"}},"Conectando ao banco de dados..."),
+        h("div",{style:{color:"#475569",fontSize:"11px"}},"Aguarde um momento")
+      ])
     ));
     return;
   }
