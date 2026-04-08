@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;font-size:13px;background:#F1F5F9;color:#111;overflow:hidden}
@@ -506,6 +507,13 @@ function buildModal(){
       cb.addEventListener("change",function(){form[f.k]=cb.checked;});
       row2.appendChild(cb);row2.appendChild(h("span",{style:{fontSize:"12px"}},f.label));
       wrap.innerHTML="";wrap.appendChild(row2);grid.appendChild(wrap);return;
+    } else if(f.type==="datalist"){
+      var dlId="dl_"+f.k+"_"+Date.now();
+      var dl=document.createElement("datalist");dl.id=dlId;
+      (f.options||[]).forEach(function(o){var opt=document.createElement("option");opt.value=o;dl.appendChild(opt);});
+      inp=h("input",{"data-field":f.k,type:"text",list:dlId,autocomplete:"off",placeholder:f.placeholder||"Digite para buscar...",oninput:function(){form[f.k]=inp.value;}},null);
+      inp.value=form[f.k]||"";
+      wrap.appendChild(dl);
     } else {
       inp=h("input",{"data-field":f.k,type:f.type||"text",oninput:function(){form[f.k]=f.type==="number"?+inp.value:inp.value;}},null);
       inp.value=form[f.k]!=null?form[f.k]:"";
@@ -694,7 +702,7 @@ function pagePagar(){
     bar.appendChild(sm);
     bar.appendChild(ftabs(["Todos","Pendente","Pago","Vencido","Cancelado"],filtro,"#B91C1C",function(v){filtro=v;rebuild();}));
     var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Nova Conta a Pagar",data:{status:"Pendente",venc:addDias(10),dtPag:"",parcelas:1},fields:[
-      {k:"forn",label:"Fornecedor",req:true,full:true,type:"select",options:(DB.fornec||[]).map(function(f){return f.nome;})},
+      {k:"forn",label:"Fornecedor",req:true,full:true,type:"datalist",options:(DB.fornec||[]).map(function(f){return f.nome;})},
       {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},
       {k:"forma",label:"Forma",type:"select",options:FORMAS_PG},{k:"valor",label:"Valor R$",type:"number",req:true},
       {k:"venc",label:"Vencimento",type:"date",req:true},{k:"dtPag",label:"Data Pagamento",type:"date"},
@@ -718,7 +726,7 @@ function pagePagar(){
       onSel:function(){rebuild();},
       onPag:function(row){upd("pagar",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});});rebuild();},
       onEdit:function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
-        {k:"forn",label:"Fornecedor",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
+        {k:"forn",label:"Fornecedor",full:true,type:"datalist",options:(DB.fornec||[]).map(function(f){return f.nome;})},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
@@ -752,7 +760,7 @@ function pageReceber(){
     bar.appendChild(sm);
     bar.appendChild(ftabs(["Todos","Pendente","Recebido","Vencido","Cancelado"],filtro,"#0F766E",function(v){filtro=v;rebuild();}));
     var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Nova Conta a Receber",data:{status:"Pendente",venc:addDias(10),dtRec:"",forma:"Boleto"},fields:[
-      {k:"cliente",label:"Cliente / Aluno",req:true,full:true},{k:"desc",label:"Descricao",req:true,full:true},
+      {k:"cliente",label:"Cliente / Aluno",req:true,full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.status==="Ativo";}).map(function(c){return c.nome;})},{k:"desc",label:"Descricao",req:true,full:true},
       {k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
       {k:"valor",label:"Valor R$",type:"number",req:true},{k:"venc",label:"Vencimento",type:"date",req:true},
       {k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},
@@ -794,7 +802,7 @@ function pageReceber(){
       onSel:function(){rebuild();},
       onRec:function(row){upd("receber",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});});rebuild();},
       onEdit:function(row){openModal({title:"Editar Conta a Receber",data:Object.assign({},row),fields:[
-        {k:"cliente",label:"Cliente",full:true},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
+        {k:"cliente",label:"Cliente",full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.status==="Ativo";}).map(function(c){return c.nome;})},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
@@ -802,6 +810,134 @@ function pageReceber(){
     page.appendChild(secEl);
   }
   rebuild();return page;
+}
+
+// ── IMPORTAR EXCEL ────────────────────────────────────────────────────────────
+function importExcelClientes(tipoDefault, onConcluido){
+  var inp=document.createElement("input");inp.type="file";inp.accept=".xlsx,.xls,.csv";
+  inp.onchange=function(){
+    var file=inp.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var wb=XLSX.read(e.target.result,{type:"array"});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var rawRows=XLSX.utils.sheet_to_json(ws,{defval:""});
+        if(!rawRows.length)return alert("Planilha vazia ou sem dados.");
+
+        // Mapeamento flexivel de colunas — reconhece variações comuns
+        var MAP={
+          nome:   ["nome","name","razao social","razão social","cliente","aluno","responsavel","responsável"],
+          tel:    ["tel","telefone","celular","whatsapp","fone","phone","contato"],
+          email:  ["email","e-mail","mail"],
+          cnpjCpf:["cnpj","cpf","cpf/cnpj","cnpj/cpf","documento","doc"],
+          tipo:   ["tipo","type","categoria tipo","perfil"],
+          cat:    ["categoria","cat","segmento","area","área"],
+          cidade: ["cidade","city"],
+          estado: ["estado","uf","state"],
+          obs:    ["obs","observacao","observação","nota","notas","note"],
+        };
+
+        function findCol(row, keys){
+          var rowKeys=Object.keys(row).map(function(k){return k.toLowerCase().trim();});
+          for(var i=0;i<keys.length;i++){
+            for(var j=0;j<rowKeys.length;j++){
+              if(rowKeys[j].includes(keys[i])){
+                return Object.keys(row)[j];
+              }
+            }
+          }
+          return null;
+        }
+
+        // Descobre colunas na primeira linha
+        var sample=rawRows[0];
+        var colMap={};
+        Object.keys(MAP).forEach(function(field){colMap[field]=findCol(sample,MAP[field]);});
+
+        // Converte linhas
+        var importados=[];var ignorados=0;
+        rawRows.forEach(function(row){
+          var nome=(colMap.nome?String(row[colMap.nome]||""):"").trim();
+          if(!nome){ignorados++;return;}
+          var tipo=(colMap.tipo?String(row[colMap.tipo]||""):"").trim()||tipoDefault;
+          // Normaliza tipo
+          var tipoNorm=tipoDefault;
+          TIPOS_CONTATO.forEach(function(t){if(t.toLowerCase()===tipo.toLowerCase())tipoNorm=t;});
+          importados.push({
+            id:0, // será definido no import
+            nome:nome,
+            tel:(colMap.tel?String(row[colMap.tel]||""):"").trim(),
+            email:(colMap.email?String(row[colMap.email]||""):"").trim(),
+            cnpjCpf:(colMap.cnpjCpf?String(row[colMap.cnpjCpf]||""):"").trim(),
+            tipo:tipoNorm,
+            cat:(colMap.cat?String(row[colMap.cat]||""):"").trim()||"",
+            cidade:(colMap.cidade?String(row[colMap.cidade]||""):"").trim(),
+            estado:(colMap.estado?String(row[colMap.estado]||""):"").trim(),
+            status:"Ativo",
+            obs:(colMap.obs?String(row[colMap.obs]||""):"").trim(),
+            banco:"",agencia:"",conta:"",
+          });
+        });
+
+        if(!importados.length)return alert("Nenhum registro válido encontrado. Verifique se há coluna 'Nome'.");
+
+        // Mostra preview no modal
+        var div=h("div",null,null);
+        div.appendChild(h("div",{style:{background:"#F0FDF4",border:"1px solid #DCFCE7",borderRadius:"8px",padding:"10px 14px",marginBottom:"12px",fontSize:"12px"}},[
+          h("strong",null,importados.length+" registros encontrados"),
+          h("span",{style:{color:"#64748B"}}," ("+ignorados+" linhas ignoradas por falta de nome)")
+        ]));
+
+        // Colunas detectadas
+        var detDiv=h("div",{style:{fontSize:"11px",color:"#64748B",marginBottom:"10px"}},null);
+        var detList=Object.keys(colMap).filter(function(k){return colMap[k];}).map(function(k){return k+": \""+colMap[k]+"\"";}).join(" · ");
+        detDiv.textContent="Colunas detectadas: "+detList;
+        div.appendChild(detDiv);
+
+        // Preview tabela
+        var prev=h("div",{style:{maxHeight:"250px",overflowY:"auto",border:"1px solid #E2E8F0",borderRadius:"8px",marginBottom:"12px"}},null);
+        var t=document.createElement("table");t.style.cssText="width:100%;font-size:11px;border-collapse:collapse";
+        var thead=document.createElement("thead");var htr=document.createElement("tr");htr.style.background="#F8FAFC";
+        ["Nome","Tipo","Telefone","Email","Cidade"].forEach(function(l){var th=document.createElement("th");th.textContent=l;th.style.cssText="padding:6px 10px;text-align:left;color:#94A3B8;font-size:10px;white-space:nowrap";htr.appendChild(th);});
+        thead.appendChild(htr);t.appendChild(thead);
+        var tbody=document.createElement("tbody");
+        importados.slice(0,8).forEach(function(r){
+          var tr=document.createElement("tr");
+          [r.nome,r.tipo,r.tel,r.email,r.cidade].forEach(function(v){var td=document.createElement("td");td.textContent=v||"—";td.style.cssText="padding:5px 10px;border-top:1px solid #F8FAFC;color:#374151;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";tr.appendChild(td);});
+          tbody.appendChild(tr);
+        });
+        if(importados.length>8){var tr2=document.createElement("tr");var td2=document.createElement("td");td2.colSpan=5;td2.textContent="... e mais "+(importados.length-8)+" registros";td2.style.cssText="padding:6px 10px;color:#94A3B8;font-size:11px;text-align:center";tr2.appendChild(td2);tbody.appendChild(tr2);}
+        t.appendChild(tbody);prev.appendChild(t);div.appendChild(prev);
+
+        // Opção: substituir ou adicionar
+        var modoDiv=h("div",{style:{display:"flex",gap:"10px",marginBottom:"4px",alignItems:"center"}},null);
+        modoDiv.appendChild(h("span",{style:{fontSize:"12px",color:"#374151"}},"Importar como:"));
+        var modoSel=h("select",{style:{height:"32px",fontSize:"12px",width:"200px"}},null);
+        [["adicionar","Adicionar aos existentes"],["substituir","Substituir todos os contatos"]].forEach(function(o){modoSel.appendChild(h("option",{value:o[0]},o[1]));});
+        modoDiv.appendChild(modoSel);div.appendChild(modoDiv);
+
+        var confirmarBtn=h("button",{"class":"btn success",style:{width:"100%",padding:"10px",marginTop:"12px",fontSize:"13px",justifyContent:"center"},onclick:function(){
+          var base=modoSel.value==="substituir"?[]:((DB.clientes)||[]).slice();
+          var nextId=maxId(base)+1;
+          importados.forEach(function(r){base.push(Object.assign({},r,{id:nextId++}));});
+          DB.clientes=base;saveDB();
+          STATE.modal=null;render();
+          STATE.mod="clientes";render();
+          alert(importados.length+" contatos importados com sucesso!");
+          if(onConcluido)onConcluido();
+        }},null);
+        confirmarBtn.innerHTML=S.check;confirmarBtn.appendChild(document.createTextNode(" Confirmar Importação"));
+        div.appendChild(confirmarBtn);
+
+        STATE.modal={title:"Importar do Excel — Preview",data:{},fields:[],extra:div,onSave:null};
+        render();
+
+      }catch(err){alert("Erro ao ler arquivo: "+err.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  inp.click();
 }
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────────
@@ -910,6 +1046,8 @@ function pageClientes(){
       ],onSave:function(d){upd(getKey(),function(arr){return arr.concat([Object.assign(d,{id:maxId(DB[getKey()])+1})]);});rebuild();}});
     }},null);
     addBtn.innerHTML=S.plus;addBtn.appendChild(document.createTextNode(" Incluir"));bar.appendChild(addBtn);
+    var impBtn=h("button",{"class":"btn",onclick:function(){importExcelClientes(tab==="Clientes"?"Cliente":"Fornecedor",rebuild);}},null);
+    impBtn.innerHTML=S.upload;impBtn.appendChild(document.createTextNode(" Importar Excel"));bar.appendChild(impBtn);
     var expBtn=h("button",{"class":"btn",onclick:function(){exportCSV((tab==="Clientes"?"clientes":"fornecedores")+".csv",rows);}},null);expBtn.innerHTML=S.dl;expBtn.appendChild(document.createTextNode(" Exportar"));bar.appendChild(expBtn);
     page.appendChild(bar);
     // Tabela com badge de tipo
