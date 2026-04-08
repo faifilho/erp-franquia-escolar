@@ -301,32 +301,44 @@ function getProfile(email){
 var STATE={user:null,empId:null,mod:"dash",modal:null,loteSelected:{}};
 var DB=null;
 var _dbReady=false;
+var _dbUnsubscribe=null; // guarda o listener ativo para cancelar no logout
 
 function saveDB(){
   try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
-  DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.error("Firestore save error:",e); });
+  if(STATE.user){
+    DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.error("Firestore save error:",e); });
+  }
 }
 
-// Escuta mudancas em tempo real — qualquer dispositivo que salvar atualiza todos
-DB_REF.onSnapshot(function(doc){
-  if(doc.exists){ DB=doc.data(); }
-  else {
-    // Tenta migrar localStorage antigo, senao cria seed
-    try{ var s=localStorage.getItem("erp_v6"); var p=s?JSON.parse(s):null; DB=(p&&p.pagar)?p:seedDB(); }
-    catch(e){ DB=seedDB(); }
-    DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.error(e);});
-  }
-  _dbReady=true;
-  render();
-}, function(err){
-  console.error("Firestore offline:",err);
-  if(!_dbReady){
-    try{ var s2=localStorage.getItem("erp_v6"); var p2=s2?JSON.parse(s2):null; DB=(p2&&p2.pagar)?p2:seedDB(); }
-    catch(e2){ DB=seedDB(); }
+function iniciarListenerDB(){
+  if(_dbUnsubscribe) return; // ja esta ouvindo
+  _dbUnsubscribe=DB_REF.onSnapshot(function(doc){
+    if(doc.exists){
+      DB=doc.data();
+    } else {
+      // Primeiro acesso: migrar localStorage ou criar seed
+      try{ var s=localStorage.getItem("erp_v6"); var p=s?JSON.parse(s):null; DB=(p&&p.pagar)?p:seedDB(); }
+      catch(e){ DB=seedDB(); }
+      DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.error(e);});
+    }
     _dbReady=true;
     render();
-  }
-});
+  }, function(err){
+    console.error("Firestore error:",err);
+    if(!_dbReady){
+      try{ var s2=localStorage.getItem("erp_v6"); var p2=s2?JSON.parse(s2):null; DB=(p2&&p2.pagar)?p2:seedDB(); }
+      catch(e2){ DB=seedDB(); }
+      _dbReady=true;
+      render();
+    }
+  });
+}
+
+function pararListenerDB(){
+  if(_dbUnsubscribe){ _dbUnsubscribe(); _dbUnsubscribe=null; }
+  _dbReady=false;
+  DB=null;
+}
 
 function maxId(arr){ return arr&&arr.length>0?Math.max.apply(null,arr.map(function(x){return +x.id||0;})):0; }
 function fEmp(arr){ return STATE.empId===0?arr:(arr||[]).filter(function(x){return x.empId===STATE.empId;}); }
@@ -1839,7 +1851,7 @@ function renderLogin(){
 
 
 // ── FIREBASE AUTH ─────────────────────────────────────────────────────────────
-var _fbReady=true;  // Show login immediately, Firebase will update
+var _fbReady=true;
 FA.onAuthStateChanged(function(fbUser){
   _fbReady=true;
   if(fbUser){
@@ -1847,10 +1859,12 @@ FA.onAuthStateChanged(function(fbUser){
     STATE.user=Object.assign({uid:fbUser.uid,email:fbUser.email},p);
     STATE.empId=STATE.user.role==="admin"?0:(STATE.user.empId||1);
     STATE.mod="dash";
+    iniciarListenerDB(); // inicia listener DEPOIS do login — Firestore vai aceitar
   } else {
+    pararListenerDB();
     STATE.user=null; STATE.empId=null;
+    render();
   }
-  render();
 });
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────────────
