@@ -287,7 +287,10 @@ var USER_PWDS = {
 
 // Custom users managed by admin
 function loadCustomUsers(){ try{ var s=localStorage.getItem("erp_usuarios"); return s?JSON.parse(s):[]; }catch(e){ return []; } }
-function saveCustomUsers(arr){ localStorage.setItem("erp_usuarios",JSON.stringify(arr)); }
+function saveCustomUsers(arr){
+  localStorage.setItem("erp_usuarios",JSON.stringify(arr));
+  if(DB){ DB.usuarios=arr; saveDB(); }
+}
 var CUSTOM_USERS = loadCustomUsers();
 
 // Get profile for any email (check PROF_MAP then CUSTOM_USERS)
@@ -308,50 +311,64 @@ function loadFromLocalStorage(){
 }
 
 function saveDB(){
+  DB.updatedAt=Date.now();
+  // Persiste usuarios customizados dentro do DB para sincronizar entre dispositivos
+  DB.usuarios=CUSTOM_USERS;
   try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
   if(STATE.user){
     try{ DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.warn("Firestore sync error:",e.code); }); }catch(e){}
   }
 }
 
+// Auto-atualiza status Pendente → Vencido para contas com vencimento passado
+function atualizarStatus(){
+  var hoje=today(); var changed=false;
+  ["pagar","receber"].forEach(function(key){
+    (DB[key]||[]).forEach(function(r){
+      if(r.status==="Pendente"&&r.venc&&r.venc<hoje){ r.status="Vencido"; changed=true; }
+    });
+  });
+  if(changed) saveDB();
+}
+
 function iniciarListenerDB(){
   if(_dbUnsubscribe) return;
 
-  // 1) Carrega localStorage imediatamente — app ja funciona
+  // 1) Carrega localStorage imediatamente — app funciona sem esperar Firestore
   var local=loadFromLocalStorage();
   DB=local||seedDB();
   if(!local){ try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){} }
+  // Sincroniza usuarios customizados do DB
+  if(DB.usuarios) CUSTOM_USERS=DB.usuarios;
+  migrarEmpIds();
+  atualizarStatus();
   _dbReady=true;
   render();
 
-  // 2) Tenta conectar Firestore em background (nao bloqueia)
-  var fsTimeout=setTimeout(function(){
-    console.warn("Firestore timeout — usando localStorage");
-  },8000);
-
+  // 2) Conecta Firestore em background para sincronizar entre dispositivos
   try{
     _dbUnsubscribe=DB_REF.onSnapshot(function(doc){
-      clearTimeout(fsTimeout);
       if(doc.exists){
         var fsData=doc.data();
-        // So substitui se o Firestore tiver dados mais recentes (mais registros)
-        var fsTotal=(fsData.pagar||[]).length+(fsData.alunos||[]).length+(fsData.clientes||[]).length;
-        var lcTotal=(DB.pagar||[]).length+(DB.alunos||[]).length+(DB.clientes||[]).length;
-        if(fsTotal>=lcTotal){
+        // Firestore vence se tiver timestamp mais recente
+        if((fsData.updatedAt||0)>(DB.updatedAt||0)){
           DB=fsData;
+          if(DB.usuarios) CUSTOM_USERS=DB.usuarios;
           try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
+          migrarEmpIds();
+          atualizarStatus();
           render();
         }
       } else {
-        // Primeiro acesso: sobe localStorage para o Firestore
+        // Primeiro acesso: sobe dados locais para o Firestore
+        DB.updatedAt=Date.now();
+        DB.usuarios=CUSTOM_USERS;
         DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.warn("Firestore set error:",e.code); });
       }
     }, function(err){
-      clearTimeout(fsTimeout);
-      console.warn("Firestore indisponivel ("+err.code+") — usando localStorage");
+      console.warn("Firestore indisponivel ("+err.code+") — usando dados locais");
     });
   }catch(e){
-    clearTimeout(fsTimeout);
     console.warn("Firestore erro ao conectar:",e);
   }
 }
@@ -362,18 +379,32 @@ function pararListenerDB(){
   DB=null;
 }
 
-function maxId(arr){ return arr&&arr.length>0?Math.max.apply(null,arr.map(function(x){return +x.id||0;})):0; }
+function migrarEmpIds(){
+  // Garante que empId seja sempre numero em todos os registros
+  var keys=["pagar","receber","clientes","fornec","alunos","cursos","fluxo","contasBancarias"];
+  var changed=false;
+  keys.forEach(function(k){
+    (DB[k]||[]).forEach(function(r){
+      if(typeof r.empId==="string"){ r.empId=+r.empId||1; changed=true; }
+    });
+  });
+  if(changed) saveDB();
+}
+
+
 function fEmp(arr){ return STATE.empId===0?arr:(arr||[]).filter(function(x){return x.empId===STATE.empId;}); }
 function canEdit(){ return !isConsolidado(); }
 function canDelete(){ return STATE.user && STATE.user.role==="admin"; }
 function isConsolidado(){ return STATE.empId===0; }
+
+var _inModalSave=false; // flag para evitar render duplo quando upd() chamado de onSave
 
 function upd(key,fn){
   try {
     DB[key]=fn(DB[key]||[]);
     saveDB();
   } catch(e) { console.error("upd error:", key, e); }
-  render();
+  if(!_inModalSave) render();
 }
 
 // ── SEED DATA ─────────────────────────────────────────────────────────────────
@@ -639,7 +670,7 @@ function buildModal(){
   var cancelBtn=h("button",{"class":"btn",onclick:closeModal},"Cancelar"); foot.appendChild(cancelBtn);
   var saveBtn=h("button",{"class":"btn primary",onclick:function(){
     if(!m.onSave){closeModal();return;}
-    if(!m.async){ STATE.modal=null; try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); } render(); return; }
+    if(!m.async){ STATE.modal=null; _inModalSave=true; try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); } _inModalSave=false; render(); return; }
     try{ m.onSave(Object.assign({},form)); }catch(e){ console.error("save error:",e); }
   }},null);
   var si=h("span",{style:{lineHeight:"0",display:"inline-flex",alignItems:"center",gap:"4px"}},null);
@@ -686,7 +717,11 @@ function buildModal(){
     if(f.label) wrap.appendChild(h("label",null,f.label+(f.req?" *":"")));
     var inp;
     if(f.type==="select"){
-      inp=h("select",{"data-field":f.k,onchange:function(){form[f.k]=inp.value;if(f.onChange)f.onChange(inp.value,form);}},null);
+      inp=h("select",{"data-field":f.k,onchange:function(){
+        var v=inp.value; var n=+v;
+        form[f.k]=(v!==""&&!isNaN(n)&&String(n)===v)?n:v;
+        if(f.onChange)f.onChange(form[f.k],form);
+      }},null);
       inp.appendChild(h("option",{value:""},"Selecione..."));
       (f.options||[]).forEach(function(o){var op=h("option",{value:o.value||o},o.label||o);if((form[f.k]||"")===(o.value||o))op.selected=true;inp.appendChild(op);});
     } else if(f.type==="textarea"){
@@ -767,7 +802,17 @@ function registrarLote(key,dtPag,forma){
 
 // ── CONTAS OPTS HELPER ────────────────────────────────────────────────────────
 function getContasOpts(empId){
-  var cadastradas=(DB.contasBancarias||[]).filter(function(c){return c.empId===(empId||STATE.empId);}).map(function(c){return c.banco+(c.conta?" - "+c.conta:"");});
+  var id=empId||STATE.empId;
+  var cadastradas;
+  if(id===0){
+    // consolidado: mostra todas com nome da escola
+    cadastradas=(DB.contasBancarias||[]).map(function(c){
+      var e=EMPRESAS.find(function(x){return x.id===c.empId;})||{short:"?"};
+      return c.banco+(c.conta?" - "+c.conta:"")+" ("+e.short+")";
+    });
+  } else {
+    cadastradas=(DB.contasBancarias||[]).filter(function(c){return c.empId===id;}).map(function(c){return c.banco+(c.conta?" - "+c.conta:"");});
+  }
   return cadastradas.length ? cadastradas : ["Conta Principal","Caixa","Poupanca"];
 }
 
@@ -1701,12 +1746,15 @@ function pageConfig(){
     contasBody.innerHTML="";
     var grid=h("div",{style:{padding:"14px"}},null);
     var addCB=h("button",{"class":"btn primary sm",style:{marginBottom:"12px"},onclick:function(){
-      openModal({title:"Nova Conta Bancaria",data:{empId:STATE.empId,tipo:"Corrente"},fields:[
+      var empIdInicial=STATE.empId===0?1:STATE.empId;
+      openModal({title:"Nova Conta Bancaria",data:{empId:empIdInicial,tipo:"Corrente"},fields:[
+        {k:"empId",label:"Escola",type:"select",options:EMPRESAS.map(function(e){return {value:e.id,label:e.nome};})},
         {k:"banco",label:"Banco",req:true},{k:"agencia",label:"Agencia"},{k:"conta",label:"Numero da Conta"},
         {k:"tipo",label:"Tipo",type:"select",options:["Corrente","Poupanca","Caixa","Investimento"]},
         {k:"saldoInicial",label:"Saldo Inicial R$",type:"number"},{k:"desc",label:"Descricao"}
       ],onSave:function(d){
         if(!DB.contasBancarias) DB.contasBancarias=[];
+        d.empId=+d.empId||empIdInicial;
         DB.contasBancarias.push(Object.assign(d,{id:maxId(DB.contasBancarias||[])+1}));
         saveDB(); rebuilContasBanc();
       }});
@@ -1717,7 +1765,7 @@ function pageConfig(){
     minhasContas.forEach(function(cb){
       var card=h("div",{style:{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:"8px",padding:"12px",marginBottom:"8px",display:"flex",alignItems:"center",gap:"12px"}},null);
       card.appendChild(h("div",{style:{flex:"1"}},null));
-      card.querySelector("div").innerHTML="<strong>"+cb.banco+"</strong> <span style='color:#64748B;font-size:11px'>"+cb.tipo+"</span><br><span style='font-size:12px;color:#374151'>Ag: "+(cb.agencia||"-")+" | Cc: "+(cb.conta||"-")+"</span>";
+      card.querySelector("div").innerHTML="<strong>"+cb.banco+"</strong> <span style='color:#64748B;font-size:11px'>"+cb.tipo+"</span>"+(STATE.empId===0?" <span style='color:#2563EB;font-size:10px;font-weight:600'>"+((EMPRESAS.find(function(e){return e.id===cb.empId;})||{short:"?"}).short)+"</span>":"")+"<br><span style='font-size:12px;color:#374151'>Ag: "+(cb.agencia||"-")+" | Cc: "+(cb.conta||"-")+"</span>";
       if(cb.saldoInicial){var sv=h("span",{style:{fontWeight:"700",color:"#15803D",fontSize:"13px"}},BRL(cb.saldoInicial));card.appendChild(sv);}
       var delCB=h("button",{style:{color:"#EF4444",padding:"4px",lineHeight:"0"},onclick:function(){if(confirm("Excluir conta?")){{DB.contasBancarias=(DB.contasBancarias||[]).filter(function(x){return x.id!==cb.id;});saveDB();rebuilContasBanc();}}}},"");
       delCB.innerHTML=S.del; card.appendChild(delCB); grid.appendChild(card);
