@@ -1104,8 +1104,8 @@ function pageConfig(){
   page.appendChild(sec("Backup e Restauracao",[],backupBody,false));
   // Zerar
   var zerarBody=h("div",{"class":"sec-pad"},null);
-  zerarBody.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"10px"}},"Apaga todos os dados e reinicia o sistema com dados de exemplo."));
-  var zerarBtn=h("button",{"class":"btn danger",onclick:function(){if(!confirm("Apagar TODOS os dados? Isso nao pode ser desfeito."))return;if(!confirm("Ultima confirmacao: apagar tudo?"))return;DB=seedDB();saveDB();render();alert("Sistema reiniciado!");}},null);zerarBtn.appendChild(document.createTextNode("Reiniciar sistema (apaga tudo)"));zerarBody.appendChild(zerarBtn);
+  zerarBody.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"10px"}},"Apaga todos os registros (contas, alunos, lancamentos) mantendo as configuracoes."));
+  var zerarBtn=h("button",{"class":"btn danger",onclick:function(){if(!confirm("Apagar TODOS os registros? Configuracoes e usuarios serao mantidos."))return;if(!confirm("Ultima confirmacao: apagar tudo?"))return;DB.pagar=[];DB.receber=[];DB.clientes=[];DB.fornec=[];DB.alunos=[];DB.cursos=[];DB.fluxo=[];DB.contasBancarias=[];saveDB();render();alert("Dados apagados. Sistema pronto para uso real.");}},null);zerarBtn.appendChild(document.createTextNode("Apagar todos os dados"));zerarBody.appendChild(zerarBtn);
   page.appendChild(sec("Zerar Dados",[],zerarBody,false));
   return page;
 }
