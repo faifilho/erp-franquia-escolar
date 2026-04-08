@@ -174,6 +174,15 @@ var FORMAS_PG=["Boleto","PIX","Cartao Credito","Cartao Debito","Transferencia","
 var STATUS_PG=["Pendente","Pago","Vencido","Cancelado"];
 var STATUS_REC=["Pendente","Recebido","Vencido","Cancelado"];
 var TURMAS=["Infantil I","Infantil II","Fund. I","Fund. II","Fund. III","Integral","Avancado","Outro"];
+var TIPOS_CONTATO=["Cliente","Fornecedor","Professor","Pais","Cliente e Fornecedor","Outro"];
+var TIPO_CORES={
+  "Cliente":    ["#1D4ED8","#DBEAFE"],
+  "Fornecedor": ["#6D28D9","#EDE9FE"],
+  "Professor":  ["#0F766E","#CCFBF1"],
+  "Pais":       ["#B45309","#FEF3C7"],
+  "Cliente e Fornecedor":["#15803D","#DCFCE7"],
+  "Outro":      ["#64748B","#F1F5F9"],
+};
 var ROLES={
   admin:      {label:"Administrador",cor:"#B91C1C",bg:"#FEE2E2",mods:["dash","pagar","receber","clientes","fluxo","alunos","cursos","rel","config"]},
   financeiro: {label:"Financeiro",   cor:"#C2410C",bg:"#FFEDD5",mods:["dash","pagar","receber","clientes","fluxo","rel"]},
@@ -335,13 +344,14 @@ var S={
   copy:'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   hat:'<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
   globe:'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>',
+  whatsapp:'<svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>',
 };
 function ico(name,color,size){var svg=S[name]||S.check;if(size)svg=svg.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"');var sp=document.createElement("span");sp.style.cssText="display:inline-flex;align-items:center;justify-content:center;line-height:0;flex-shrink:0;"+(color?"color:"+color:"");sp.innerHTML=svg;return sp;}
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function badge(status){
   var MAP={"Ativo":["#15803D","#DCFCE7"],"Inativo":["#64748B","#F1F5F9"],"Pago":["#15803D","#DCFCE7"],"Recebido":["#15803D","#DCFCE7"],"Pendente":["#B45309","#FEF3C7"],"Vencido":["#B91C1C","#FEE2E2"],"Cancelado":["#64748B","#F1F5F9"],"Entrada":["#15803D","#DCFCE7"],"Saida":["#B91C1C","#FEE2E2"]};
-  var c=MAP[status]||["#64748B","#F1F5F9"];
+  var c=MAP[status]||TIPO_CORES[status]||["#64748B","#F1F5F9"];
   var sp=document.createElement("span");sp.className="badge";sp.style.color=c[0];sp.style.background=c[1];sp.textContent=status||"";return sp;
 }
 function kpi(label,val,sub,subClass,iconName,iconColor,iconBg){
@@ -432,24 +442,49 @@ function buildModal(){
   box.appendChild(head);box.appendChild(body);box.appendChild(foot);
   // CNPJ lookup
   function buscarCNPJ(cnpj){
-    var clean=cnpj.replace(/[^0-9]/g,"");if(clean.length!==14)return alert("CNPJ invalido.");
-    var msgEl=body.querySelector(".cnpj-msg");if(msgEl)msgEl.textContent="Buscando...";
-    fetch("https://brasilapi.com.br/api/cnpj/v1/"+clean).then(function(r){return r.json();}).then(function(d){
-      if(d.cnpj){
-        form.nome=d.razao_social||form.nome;form.cnpjCpf=cnpj;form.cat=d.cnae_fiscal_descricao||form.cat;
-        form.cidade=d.municipio||form.cidade;form.estado=d.uf||form.estado;form.email=d.email||form.email;form.tel=d.ddd_telefone_1||form.tel;
-        body.querySelectorAll("input,select").forEach(function(inp){var k=inp.getAttribute("data-field");if(k&&form[k]!=null)inp.value=form[k];});
-        if(msgEl){msgEl.style.color="#15803D";msgEl.textContent="Encontrado: "+d.razao_social;}
-      }
-    }).catch(function(){if(msgEl){msgEl.style.color="#B91C1C";msgEl.textContent="CNPJ nao encontrado.";}});
+    var clean=cnpj.replace(/[^0-9]/g,"");
+    var msgEl=body.querySelector(".cnpj-msg");
+    if(clean.length===11){
+      // CPF — Receita Federal nao disponibiliza consulta publica de CPF
+      if(msgEl){msgEl.style.color="#B45309";msgEl.textContent="CPF inserido. Consulta de CPF nao disponivel — preencha os dados manualmente.";}
+      return;
+    }
+    if(clean.length!==14){
+      if(msgEl){msgEl.style.color="#B91C1C";msgEl.textContent="Digite um CNPJ (14 digitos) ou CPF (11 digitos).";}
+      return;
+    }
+    if(msgEl){msgEl.style.color="#2563EB";msgEl.textContent="Buscando na Receita Federal...";}
+    fetch("https://brasilapi.com.br/api/cnpj/v1/"+clean)
+      .then(function(r){
+        if(!r.ok) throw new Error("not_found");
+        return r.json();
+      })
+      .then(function(d){
+        if(!d.cnpj) throw new Error("not_found");
+        form.nome=d.razao_social||form.nome;
+        form.cnpjCpf=cnpj;
+        form.cat=d.cnae_fiscal_descricao||form.cat;
+        form.cidade=d.municipio||form.cidade;
+        form.estado=d.uf||form.estado;
+        form.email=d.email&&d.email!=="NAO INFORMADO"?d.email:form.email;
+        form.tel=d.ddd_telefone_1||form.tel;
+        body.querySelectorAll("input,select").forEach(function(inp){
+          var k=inp.getAttribute("data-field");
+          if(k&&form[k]!=null&&form[k]!=="") inp.value=form[k];
+        });
+        if(msgEl){msgEl.style.color="#15803D";msgEl.textContent="✓ Encontrado: "+d.razao_social;}
+      })
+      .catch(function(e){
+        if(msgEl){msgEl.style.color="#B91C1C";msgEl.textContent=e.message==="not_found"?"CNPJ nao encontrado na Receita Federal.":"Erro de conexao. Verifique sua internet.";}
+      });
   }
   var grid=h("div",{"class":"form-grid"},null);
   var hasCnpj=(m.fields||[]).some(function(f){return f&&f.k==="cnpjCpf";});
   if(hasCnpj){
-    var cnpjRow=h("div",{style:{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}},null);
-    var cnpjMsg=h("span",{"class":"cnpj-msg",style:{fontSize:"11px",color:"#2563EB",flex:"1"}},"");
+    var cnpjRow=h("div",{style:{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px",flexWrap:"wrap"}},null);
+    var cnpjMsg=h("span",{"class":"cnpj-msg",style:{fontSize:"11px",color:"#2563EB",flex:"1"}},"\uD83D\uDCA1 Para CNPJ: digite e clique Buscar para preencher automaticamente.");
     var cnpjBtn=h("button",{"class":"btn sm",onclick:function(){buscarCNPJ(form.cnpjCpf||"");}},null);
-    cnpjBtn.appendChild(ico("globe","#2563EB",11));cnpjBtn.appendChild(document.createTextNode(" Buscar CNPJ"));
+    cnpjBtn.appendChild(ico("globe","#2563EB",11));cnpjBtn.appendChild(document.createTextNode(" Buscar na Receita Federal"));
     cnpjRow.appendChild(cnpjMsg);cnpjRow.appendChild(cnpjBtn);
     body.appendChild(cnpjRow);
   }
@@ -490,7 +525,7 @@ function tbl(cols,rows,opts){
   var thead=h("thead",null,null);var htr=h("tr",null,null);
   if(opts.onSel)htr.appendChild(h("th",{style:{width:"30px"}},null));
   cols.forEach(function(c){htr.appendChild(h("th",{"class":c.r?"r":"",style:{width:c.w||"auto",whiteSpace:"nowrap"}},c.label));});
-  if(opts.onEdit||opts.onDel||opts.onPag||opts.onRec)htr.appendChild(h("th",{style:{width:"90px"}},null));
+  if(opts.onEdit||opts.onDel||opts.onPag||opts.onRec||opts.onWpp)htr.appendChild(h("th",{style:{width:"110px"}},null));
   thead.appendChild(htr);table.appendChild(thead);
   var tbody=h("tbody",null,null);
   if(!rows||!rows.length){var etr=h("tr",null,null);etr.appendChild(h("td",{colspan:"20",style:{textAlign:"center",color:"#CBD5E1",padding:"24px"}},"Nenhum registro"));tbody.appendChild(etr);}
@@ -504,11 +539,12 @@ function tbl(cols,rows,opts){
       else td.textContent=val==null?"":val;
       tr.appendChild(td);
     });
-    if(opts.onEdit||opts.onDel||opts.onPag||opts.onRec){
+    if(opts.onEdit||opts.onDel||opts.onPag||opts.onRec||opts.onWpp){
       var atd=h("td",{style:{textAlign:"right",whiteSpace:"nowrap"}},null);
       var abg=h("div",{style:{display:"flex",gap:"2px",justifyContent:"flex-end"}},null);
       if(opts.onPag){var pb=h("button",{"class":"btn xs success",onclick:function(){opts.onPag(row);}},null);pb.innerHTML=S.check;pb.appendChild(document.createTextNode(" Pagar"));abg.appendChild(pb);}
       if(opts.onRec){var rb=h("button",{"class":"btn xs success",onclick:function(){opts.onRec(row);}},null);rb.innerHTML=S.check;rb.appendChild(document.createTextNode(" Receber"));abg.appendChild(rb);}
+      if(opts.onWpp){var wb=h("button",{style:{padding:"3px",color:"#25D366"},title:"WhatsApp",onclick:function(){opts.onWpp(row);}},null);wb.innerHTML=S.whatsapp;abg.appendChild(wb);}
       if(opts.onEdit){var eb=h("button",{style:{padding:"3px",color:"#94A3B8"},onclick:function(){opts.onEdit(row);}},null);eb.innerHTML=S.edit;abg.appendChild(eb);}
       if(opts.onDel){var db2=h("button",{style:{padding:"3px",color:"#EF4444"},onclick:function(){if(confirm("Excluir?"))opts.onDel(row.id);}},null);db2.innerHTML=S.del;abg.appendChild(db2);}
       atd.appendChild(abg);tr.appendChild(atd);
@@ -768,42 +804,133 @@ function pageReceber(){
   rebuild();return page;
 }
 
+// ── WHATSAPP ──────────────────────────────────────────────────────────────────
+function abrirWhatsApp(cliente){
+  var tel=(cliente.tel||"").replace(/[^0-9]/g,"");
+  // Adiciona DDI 55 se necessario
+  if(tel.length===10||tel.length===11) tel="55"+tel;
+
+  var escola=((DB.config&&DB.config.escola)||"Escola");
+  var TEMPLATES=[
+    {label:"Mensagem livre",msg:""},
+    {label:"Cobrança de mensalidade",msg:"Olá, "+cliente.nome+"! Tudo bem?\n\nPassando para informar que identificamos uma mensalidade em aberto. Poderia verificar?\n\nQualquer dúvida estamos à disposição!\n\n_"+escola+"_"},
+    {label:"Boas-vindas / matrícula",msg:"Olá, "+cliente.nome+"! Seja muito bem-vindo(a) à "+escola+"! 🎉\n\nFicamos felizes em ter você conosco. Em caso de dúvidas, é só falar aqui.\n\n_"+escola+"_"},
+    {label:"Lembrete de vencimento",msg:"Olá, "+cliente.nome+"! Tudo bem?\n\nPassando para lembrar que sua mensalidade vence em breve. Fique atento para evitar juros!\n\nPrecisando de ajuda, é só chamar. 😊\n\n_"+escola+"_"},
+    {label:"Confirmação de pagamento",msg:"Olá, "+cliente.nome+"! Tudo bem?\n\nConfirmamos o recebimento do seu pagamento. Muito obrigado! ✅\n\n_"+escola+"_"},
+    {label:"Informações gerais",msg:"Olá, "+cliente.nome+"! Tudo bem?\n\nEntramos em contato para tratar sobre sua conta aqui na "+escola+".\n\nPoderia nos retornar quando possível? 😊"},
+  ];
+
+  var selMsg="";var selTemplate=null;
+
+  var div=h("div",{style:{padding:"4px 0"}},null);
+
+  if(!tel||tel.length<12){
+    div.appendChild(h("p",{style:{color:"#B91C1C",fontSize:"12px",padding:"8px",background:"#FEF2F2",borderRadius:"8px"}},"⚠️ Telefone não cadastrado ou inválido para este cliente. Edite o cadastro e adicione o telefone com DDD."));
+    STATE.modal={title:"WhatsApp — "+cliente.nome,data:{},fields:[],extra:div,onSave:function(){}};render();return;
+  }
+
+  // Selector de template
+  div.appendChild(h("p",{style:{fontSize:"11px",color:"#64748B",marginBottom:"8px"}},"Telefone: "+(cliente.tel||tel)));
+  var tmplLabel=h("label",{style:{display:"block",fontSize:"10px",fontWeight:"600",color:"#374151",marginBottom:"4px"}},"Mensagem predefinida");
+  var tmplSel=h("select",{style:{width:"100%",marginBottom:"10px",height:"36px",fontSize:"12px"}},null);
+  TEMPLATES.forEach(function(t,i){tmplSel.appendChild(h("option",{value:String(i)},t.label));});
+  div.appendChild(tmplLabel);div.appendChild(tmplSel);
+
+  var msgLabel=h("label",{style:{display:"block",fontSize:"10px",fontWeight:"600",color:"#374151",marginBottom:"4px"}},"Mensagem (edite à vontade)");
+  var msgArea=h("textarea",{style:{width:"100%",height:"130px",fontSize:"12px",padding:"8px",borderRadius:"7px",border:"1px solid #D1D5DB",resize:"vertical",fontFamily:"inherit"}},null);
+  div.appendChild(msgLabel);div.appendChild(msgArea);
+
+  tmplSel.addEventListener("change",function(){
+    var idx=parseInt(tmplSel.value)||0;
+    msgArea.value=TEMPLATES[idx].msg;
+    selMsg=TEMPLATES[idx].msg;
+  });
+
+  msgArea.addEventListener("input",function(){selMsg=msgArea.value;});
+
+  var abrirBtn=h("button",{"class":"btn success",style:{width:"100%",marginTop:"10px",padding:"10px",fontSize:"13px",justifyContent:"center"},onclick:function(){
+    var msg=msgArea.value.trim();
+    var url="https://wa.me/"+tel+(msg?"?text="+encodeURIComponent(msg):"");
+    window.open(url,"_blank");
+  }},null);
+  abrirBtn.innerHTML=S.whatsapp;abrirBtn.appendChild(document.createTextNode(" Abrir WhatsApp"));
+  div.appendChild(abrirBtn);
+
+  STATE.modal={title:"WhatsApp — "+cliente.nome,data:{},fields:[],extra:div,onSave:null};
+  render();
+}
+
 // ── CLIENTES / FORNECEDORES ───────────────────────────────────────────────────
 function pageClientes(){
-  var search="";var tab="Clientes";var filtroStatus="Todos";
+  var search="";var tab="Clientes";var filtroStatus="Todos";var filtroTipo="Todos";
   var page=h("div",{"class":"page"},null);
   function getKey(){return tab==="Clientes"?"clientes":"fornec";}
-  function getRows(){return (DB[getKey()]||[]).filter(function(r){return (filtroStatus==="Todos"||r.status===filtroStatus)&&(search===""||r.nome.toLowerCase().includes(search)||(r.cnpjCpf||"").includes(search));});}
+  function getRows(){return (DB[getKey()]||[]).filter(function(r){
+    return (filtroStatus==="Todos"||r.status===filtroStatus)
+      &&(filtroTipo==="Todos"||r.tipo===filtroTipo)
+      &&(search===""||r.nome.toLowerCase().includes(search)||(r.cnpjCpf||"").includes(search)||(r.tipo||"").toLowerCase().includes(search));
+  });}
   function rebuild(){
-    page.innerHTML="";var rows=getRows();
-    var g=h("div",{"class":"kpi-grid",style:{gridTemplateColumns:"repeat(3,minmax(0,1fr))"}},null);
-    g.appendChild(kpi("Total",rows.length,"",""));g.appendChild(kpi("Ativos",rows.filter(function(r){return r.status==="Ativo";}).length,"","up"));g.appendChild(kpi("Inativos",rows.filter(function(r){return r.status==="Inativo";}).length,"",""));
+    page.innerHTML="";var rows=getRows();var todos=DB[getKey()]||[];
+    // KPIs por tipo
+    var tiposPresentes={};todos.forEach(function(r){tiposPresentes[r.tipo||"Outro"]=(tiposPresentes[r.tipo||"Outro"]||0)+1;});
+    var g=h("div",{"class":"kpi-grid"},null);
+    g.appendChild(kpi("Total",todos.length,"",""));
+    Object.keys(tiposPresentes).forEach(function(t){
+      var c=TIPO_CORES[t]||["#64748B","#F1F5F9"];
+      g.appendChild(kpi(t,tiposPresentes[t],"",""));
+    });
+    g.appendChild(kpi("Ativos",todos.filter(function(r){return r.status==="Ativo";}).length,"","up"));
     page.appendChild(g);
+    // Tabs
     var tabRow=h("div",{"class":"tab-row"},null);
-    ["Clientes","Fornecedores"].forEach(function(t){tabRow.appendChild(h("div",{"class":"tab-item"+(tab===t?" on":""),onclick:function(){tab=t;rebuild();}},t));});
+    ["Clientes","Fornecedores"].forEach(function(t){tabRow.appendChild(h("div",{"class":"tab-item"+(tab===t?" on":""),onclick:function(){tab=t;filtroTipo="Todos";rebuild();}},t));});
     page.appendChild(tabRow);
+    // Filtros
     var bar=h("div",{"class":"fbar"},null);
-    bar.appendChild(searchBar(search,function(v){search=v.toLowerCase();rebuild();},"Buscar nome ou CNPJ/CPF..."));
+    bar.appendChild(searchBar(search,function(v){search=v.toLowerCase();rebuild();},"Buscar nome, CNPJ/CPF ou tipo..."));
     bar.appendChild(ftabs(["Todos","Ativo","Inativo"],filtroStatus,"#6D28D9",function(v){filtroStatus=v;rebuild();}));
+    // Filtro por tipo
+    var tiposSel=h("select",{onchange:function(){filtroTipo=this.value;rebuild();},style:{height:"32px",fontSize:"12px",width:"130px"}},null);
+    tiposSel.appendChild(h("option",{value:"Todos"},"Todos os tipos"));
+    TIPOS_CONTATO.forEach(function(t){var op=h("option",{value:t},t);if(t===filtroTipo)op.selected=true;tiposSel.appendChild(op);});
+    bar.appendChild(tiposSel);
+    // Botões
     var addBtn=h("button",{"class":"btn primary",onclick:function(){
-      openModal({title:"Novo "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:{status:"Ativo",tipo:tab==="Clientes"?"Cliente":"Fornecedor"},fields:[
+      openModal({title:"Novo Contato",data:{status:"Ativo",tipo:tab==="Clientes"?"Cliente":"Fornecedor"},fields:[
         {k:"nome",label:"Nome / Razao Social",req:true,full:true},
-        {k:"cnpjCpf",label:"CNPJ / CPF"},{k:"tipo",label:"Tipo",type:"select",options:["Cliente","Fornecedor","Cliente e Fornecedor"]},
+        {k:"cnpjCpf",label:"CNPJ / CPF"},
+        {k:"tipo",label:"Tipo",type:"select",options:TIPOS_CONTATO},
         {k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
-        {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
-        {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},
+        {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},
+        {k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
+        {type:"divider",label:"Dados Bancarios"},
+        {k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},
         {k:"obs",label:"Observacoes",type:"textarea",full:true}
       ],onSave:function(d){upd(getKey(),function(arr){return arr.concat([Object.assign(d,{id:maxId(DB[getKey()])+1})]);});rebuild();}});
     }},null);
     addBtn.innerHTML=S.plus;addBtn.appendChild(document.createTextNode(" Incluir"));bar.appendChild(addBtn);
     var expBtn=h("button",{"class":"btn",onclick:function(){exportCSV((tab==="Clientes"?"clientes":"fornecedores")+".csv",rows);}},null);expBtn.innerHTML=S.dl;expBtn.appendChild(document.createTextNode(" Exportar"));bar.appendChild(expBtn);
     page.appendChild(bar);
-    var cols=[{k:"nome",label:"Nome",maxw:"180px"},{k:"cnpjCpf",label:"CNPJ/CPF",w:"130px"},{k:"cat",label:"Categoria"},{k:"tel",label:"Telefone",w:"120px",nowrap:true},{k:"email",label:"Email",maxw:"150px"},{k:"cidade",label:"Cidade"},{k:"status",label:"Status",w:"70px",render:function(v){return badge(v);}}];
-    page.appendChild(sec(tab+" ("+rows.length+")",[],tbl(cols,rows,{
-      onEdit:function(row){openModal({title:"Editar "+(tab==="Clientes"?"Cliente":"Fornecedor"),data:Object.assign({},row),fields:[
-        {k:"nome",label:"Nome",full:true},{k:"cnpjCpf",label:"CNPJ/CPF"},{k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
+    // Tabela com badge de tipo
+    var cols=[
+      {k:"nome",label:"Nome",maxw:"180px"},
+      {k:"tipo",label:"Tipo",w:"110px",render:function(v){return badge(v||"Outro");}},
+      {k:"cnpjCpf",label:"CNPJ/CPF",w:"130px"},
+      {k:"cat",label:"Categoria"},
+      {k:"tel",label:"Telefone",w:"120px",nowrap:true},
+      {k:"email",label:"Email",maxw:"150px"},
+      {k:"status",label:"Status",w:"70px",render:function(v){return badge(v);}},
+    ];
+    page.appendChild(sec(tab+" — "+rows.length+" encontrado(s)",[],tbl(cols,rows,{
+      onWpp:function(row){abrirWhatsApp(row);},
+      onEdit:function(row){openModal({title:"Editar Contato",data:Object.assign({},row),fields:[
+        {k:"nome",label:"Nome",full:true},{k:"cnpjCpf",label:"CNPJ/CPF"},
+        {k:"tipo",label:"Tipo",type:"select",options:TIPOS_CONTATO},
+        {k:"cat",label:"Categoria"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
         {k:"cidade",label:"Cidade"},{k:"estado",label:"UF"},{k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},
-        {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},{k:"obs",label:"Obs",type:"textarea",full:true}
+        {type:"divider",label:"Dados Bancarios"},{k:"banco",label:"Banco"},{k:"agencia",label:"Agencia"},{k:"conta",label:"Conta"},
+        {k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd(getKey(),function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd(getKey(),function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }),false));
@@ -885,6 +1012,7 @@ function pageAlunos(){
     page.appendChild(bar);
     var cols=[{k:"nome",label:"Aluno",maxw:"150px"},{k:"responsavel",label:"Responsavel",maxw:"130px"},{k:"turma",label:"Turma",w:"100px"},{k:"dtMatricula",label:"Matricula",w:"85px",render:DT},{k:"tel",label:"Telefone",w:"110px",nowrap:true},{k:"mens",label:"Mensalidade",r:true,w:"100px",render:BRL},{k:"status",label:"Status",w:"70px",render:function(v){return badge(v);}}];
     page.appendChild(sec("Alunos ("+r.length+")",[],tbl(cols,r,{
+      onWpp:function(row){abrirWhatsApp({nome:row.nome,tel:row.tel||""});},
       onEdit:function(row){openModal({title:"Editar Aluno",data:Object.assign({},row),fields:[
         {k:"nome",label:"Nome",full:true},{k:"responsavel",label:"Responsavel",full:true},{k:"cpf",label:"CPF"},{k:"dtMatricula",label:"Data Matricula",type:"date"},
         {k:"turma",label:"Turma",type:"select",options:TURMAS},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
