@@ -508,12 +508,36 @@ function buildModal(){
       row2.appendChild(cb);row2.appendChild(h("span",{style:{fontSize:"12px"}},f.label));
       wrap.innerHTML="";wrap.appendChild(row2);grid.appendChild(wrap);return;
     } else if(f.type==="datalist"){
-      var dlId="dl_"+f.k+"_"+Date.now();
-      var dl=document.createElement("datalist");dl.id=dlId;
-      (f.options||[]).forEach(function(o){var opt=document.createElement("option");opt.value=o;dl.appendChild(opt);});
-      inp=h("input",{"data-field":f.k,type:"text",list:dlId,autocomplete:"off",placeholder:f.placeholder||"Digite para buscar...",oninput:function(){form[f.k]=inp.value;}},null);
-      inp.value=form[f.k]||"";
-      wrap.appendChild(dl);
+      // Busca visual customizada — funciona mesmo com muitos registros
+      var opts2=f.options||[];
+      var searchInp=h("input",{"data-field":f.k,type:"text",autocomplete:"off",placeholder:"Digite para buscar...",
+        style:{borderRadius:"7px 7px 0 0"}},null);
+      searchInp.value=form[f.k]||"";
+      var dropdown=h("div",{style:{
+        position:"absolute",zIndex:"999",background:"#fff",border:"1px solid #2563EB",
+        borderTop:"none",borderRadius:"0 0 7px 7px",maxHeight:"160px",overflowY:"auto",
+        width:"100%",display:"none",boxShadow:"0 4px 12px rgba(0,0,0,.1)"
+      }},null);
+      wrap.style.position="relative";
+      function renderOpts(val){
+        dropdown.innerHTML="";
+        var q=val.toLowerCase();
+        var filtered=opts2.filter(function(o){return o.toLowerCase().includes(q);}).slice(0,20);
+        if(!filtered.length){dropdown.style.display="none";return;}
+        filtered.forEach(function(o){
+          var item=h("div",{style:{padding:"7px 11px",cursor:"pointer",fontSize:"12px",borderBottom:"1px solid #F1F5F9"},
+            onmousedown:function(e){e.preventDefault();searchInp.value=o;form[f.k]=o;dropdown.style.display="none";}},o);
+          item.addEventListener("mouseover",function(){item.style.background="#EFF6FF";});
+          item.addEventListener("mouseout",function(){item.style.background="";});
+          dropdown.appendChild(item);
+        });
+        dropdown.style.display="block";
+      }
+      searchInp.addEventListener("input",function(){form[f.k]=searchInp.value;renderOpts(searchInp.value);});
+      searchInp.addEventListener("focus",function(){renderOpts(searchInp.value);});
+      searchInp.addEventListener("blur",function(){setTimeout(function(){dropdown.style.display="none";},150);});
+      inp=searchInp;
+      wrap.appendChild(dropdown);
     } else {
       inp=h("input",{"data-field":f.k,type:f.type||"text",oninput:function(){form[f.k]=f.type==="number"?+inp.value:inp.value;}},null);
       inp.value=form[f.k]!=null?form[f.k]:"";
@@ -702,7 +726,7 @@ function pagePagar(){
     bar.appendChild(sm);
     bar.appendChild(ftabs(["Todos","Pendente","Pago","Vencido","Cancelado"],filtro,"#B91C1C",function(v){filtro=v;rebuild();}));
     var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Nova Conta a Pagar",data:{status:"Pendente",venc:addDias(10),dtPag:"",parcelas:1},fields:[
-      {k:"forn",label:"Fornecedor",req:true,full:true,type:"datalist",options:(DB.fornec||[]).map(function(f){return f.nome;})},
+      {k:"forn",label:"Fornecedor",req:true,full:true,type:"datalist",placeholder:"Digite o nome do fornecedor...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},
       {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},
       {k:"forma",label:"Forma",type:"select",options:FORMAS_PG},{k:"valor",label:"Valor R$",type:"number",req:true},
       {k:"venc",label:"Vencimento",type:"date",req:true},{k:"dtPag",label:"Data Pagamento",type:"date"},
@@ -726,7 +750,7 @@ function pagePagar(){
       onSel:function(){rebuild();},
       onPag:function(row){upd("pagar",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});});rebuild();},
       onEdit:function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
-        {k:"forn",label:"Fornecedor",full:true,type:"datalist",options:(DB.fornec||[]).map(function(f){return f.nome;})},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
+        {k:"forn",label:"Fornecedor",full:true,type:"datalist",placeholder:"Digite o nome...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
