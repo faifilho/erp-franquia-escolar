@@ -301,41 +301,63 @@ function getProfile(email){
 var STATE={user:null,empId:null,mod:"dash",modal:null,loteSelected:{}};
 var DB=null;
 var _dbReady=false;
-var _dbUnsubscribe=null; // guarda o listener ativo para cancelar no logout
+var _dbUnsubscribe=null;
+
+function loadFromLocalStorage(){
+  try{ var s=localStorage.getItem("erp_v6"); var p=s?JSON.parse(s):null; return (p&&p.pagar)?p:null; }catch(e){ return null; }
+}
 
 function saveDB(){
   try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
   if(STATE.user){
-    DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.error("Firestore save error:",e); });
+    try{ DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.warn("Firestore sync error:",e.code); }); }catch(e){}
   }
 }
 
 function iniciarListenerDB(){
-  if(_dbUnsubscribe) return; // ja esta ouvindo
-  _dbUnsubscribe=DB_REF.onSnapshot(function(doc){
-    if(doc.exists){
-      DB=doc.data();
-    } else {
-      // Primeiro acesso: migrar localStorage ou criar seed
-      try{ var s=localStorage.getItem("erp_v6"); var p=s?JSON.parse(s):null; DB=(p&&p.pagar)?p:seedDB(); }
-      catch(e){ DB=seedDB(); }
-      DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.error(e);});
-    }
-    _dbReady=true;
-    render();
-  }, function(err){
-    console.error("Firestore error:",err);
-    if(!_dbReady){
-      try{ var s2=localStorage.getItem("erp_v6"); var p2=s2?JSON.parse(s2):null; DB=(p2&&p2.pagar)?p2:seedDB(); }
-      catch(e2){ DB=seedDB(); }
-      _dbReady=true;
-      render();
-    }
-  });
+  if(_dbUnsubscribe) return;
+
+  // 1) Carrega localStorage imediatamente — app ja funciona
+  var local=loadFromLocalStorage();
+  DB=local||seedDB();
+  if(!local){ try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){} }
+  _dbReady=true;
+  render();
+
+  // 2) Tenta conectar Firestore em background (nao bloqueia)
+  var fsTimeout=setTimeout(function(){
+    console.warn("Firestore timeout — usando localStorage");
+  },8000);
+
+  try{
+    _dbUnsubscribe=DB_REF.onSnapshot(function(doc){
+      clearTimeout(fsTimeout);
+      if(doc.exists){
+        var fsData=doc.data();
+        // So substitui se o Firestore tiver dados mais recentes (mais registros)
+        var fsTotal=(fsData.pagar||[]).length+(fsData.alunos||[]).length+(fsData.clientes||[]).length;
+        var lcTotal=(DB.pagar||[]).length+(DB.alunos||[]).length+(DB.clientes||[]).length;
+        if(fsTotal>=lcTotal){
+          DB=fsData;
+          try{ localStorage.setItem("erp_v6",JSON.stringify(DB)); }catch(e){}
+          render();
+        }
+      } else {
+        // Primeiro acesso: sobe localStorage para o Firestore
+        DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){ console.warn("Firestore set error:",e.code); });
+      }
+    }, function(err){
+      clearTimeout(fsTimeout);
+      console.warn("Firestore indisponivel ("+err.code+") — usando localStorage");
+    });
+  }catch(e){
+    clearTimeout(fsTimeout);
+    console.warn("Firestore erro ao conectar:",e);
+  }
 }
 
 function pararListenerDB(){
-  if(_dbUnsubscribe){ _dbUnsubscribe(); _dbUnsubscribe=null; }
+  if(_dbUnsubscribe){ try{ _dbUnsubscribe(); }catch(e){} _dbUnsubscribe=null; }
   _dbReady=false;
   DB=null;
 }
@@ -1873,12 +1895,9 @@ function render(){
   if(!root) return;
   root.innerHTML="";
 
-  if(!_fbReady||!_dbReady){
+  if(!_fbReady){
     root.appendChild(h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0F172A"}},
-      h("div",{style:{textAlign:"center"}},[
-        h("div",{style:{color:"#94A3B8",fontSize:"14px",marginBottom:"8px"}},"Conectando ao banco de dados..."),
-        h("div",{style:{color:"#475569",fontSize:"11px"}},"Aguarde um momento")
-      ])
+      h("div",{style:{textAlign:"center",color:"#94A3B8",fontSize:"14px"}},"Carregando...")
     ));
     return;
   }
