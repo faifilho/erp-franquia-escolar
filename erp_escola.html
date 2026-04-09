@@ -591,19 +591,25 @@ function registrarLote(key,dt,forma){
   var ids=Object.keys(STATE.loteSelected).filter(function(id){return STATE.loteSelected[id];});
   if(!ids.length)return alert("Selecione ao menos um registro.");
   var registrados=[];
-  upd(key,function(arr){return arr.map(function(r){
+  // Remove lançamentos anteriores desses registros
+  var refKey=key==="pagar"?"pagarId":"receberId";
+  var idNums=ids.map(function(id){return +id;});
+  DB.fluxo=(DB.fluxo||[]).filter(function(f){return idNums.indexOf(f[refKey])<0;});
+  // Atualiza status
+  DB[key]=(DB[key]||[]).map(function(r){
     if(ids.indexOf(String(r.id))>=0||ids.indexOf(r.id)>=0){
       var sf=key==="pagar"?"Pago":"Recebido";var df=key==="pagar"?"dtPag":"dtRec";
       var u2=Object.assign({},r);u2.status=sf;u2[df]=dt||today();u2.forma=forma||u2.forma;
       registrados.push(u2);return u2;
     }
     return r;
-  });});
-  // Cria lançamentos no fluxo para cada registro
-  if(!DB.fluxo)DB.fluxo=[];
+  });
+  // Cria lançamentos vinculados
   registrados.forEach(function(r){
     var nomeRef=key==="pagar"?r.forn:r.cliente;
-    DB.fluxo.push({id:maxId(DB.fluxo)+1,data:dt||today(),desc:r.desc+(nomeRef?" — "+nomeRef:""),cat:r.cat||(key==="pagar"?"Outras Despesas":"Mensalidades"),tipo:key==="pagar"?"Saida":"Entrada",valor:r.valor,conta:r.conta||getContasOpts()[0],conc:false,obs:"Lote"});
+    var entry={id:maxId(DB.fluxo)+1,data:dt||today(),desc:r.desc+(nomeRef?" — "+nomeRef:""),cat:r.cat||(key==="pagar"?"Outras Despesas":"Mensalidades"),tipo:key==="pagar"?"Saida":"Entrada",valor:r.valor,conta:r.conta||getContasOpts()[0],conc:false,obs:""};
+    entry[refKey]=r.id;
+    DB.fluxo.push(entry);
   });
   saveDB();
   STATE.loteSelected={};
@@ -758,16 +764,24 @@ function pagePagar(){
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
       onPag:function(row){
-        upd("pagar",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});});
-        // Cria lançamento de saída no fluxo de caixa
-        if(!DB.fluxo) DB.fluxo=[];
-        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+" — "+row.forn,cat:row.cat||"Outras Despesas",tipo:"Saida",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"Gerado automaticamente ao pagar"});
+        // Remove lançamento anterior deste registro (se existir)
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.pagarId!==row.id;});
+        // Atualiza status
+        DB.pagar=(DB.pagar||[]).map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});
+        // Cria lançamento de saída vinculado
+        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+(row.forn?" — "+row.forn:""),cat:row.cat||"Outras Despesas",tipo:"Saida",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"",pagarId:row.id});
         saveDB();rebuild();
       },
       onEdit:function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
         {k:"forn",label:"Fornecedor",full:true,type:"datalist",placeholder:"Digite o nome...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
-      ],onSave:function(d){upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
+      ],onSave:function(d){
+        // Sincroniza fluxo conforme status
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.pagarId!==d.id;});
+        if(d.status==="Pago"){
+          DB.fluxo.push({id:maxId(DB.fluxo)+1,data:d.dtPag||today(),desc:d.desc+(d.forn?" — "+d.forn:""),cat:d.cat||"Outras Despesas",tipo:"Saida",valor:d.valor,conta:d.conta||getContasOpts()[0],conc:false,obs:"",pagarId:d.id});
+        }
+        upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
     page.appendChild(secEl);
@@ -840,16 +854,24 @@ function pageReceber(){
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
       onRec:function(row){
-        upd("receber",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});});
-        // Cria lançamento de entrada no fluxo de caixa
-        if(!DB.fluxo) DB.fluxo=[];
-        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+" — "+row.cliente,cat:row.cat||"Mensalidades",tipo:"Entrada",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"Gerado automaticamente ao receber"});
+        // Remove lançamento anterior deste registro (se existir)
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.receberId!==row.id;});
+        // Atualiza status
+        DB.receber=(DB.receber||[]).map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});
+        // Cria lançamento de entrada vinculado
+        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+(row.cliente?" — "+row.cliente:""),cat:row.cat||"Mensalidades",tipo:"Entrada",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"",receberId:row.id});
         saveDB();rebuild();
       },
       onEdit:function(row){openModal({title:"Editar Conta a Receber",data:Object.assign({},row),fields:[
         {k:"cliente",label:"Cliente",full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.status==="Ativo";}).map(function(c){return c.nome;})},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
-      ],onSave:function(d){upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
+      ],onSave:function(d){
+        // Sincroniza fluxo conforme status
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.receberId!==d.id;});
+        if(d.status==="Recebido"){
+          DB.fluxo.push({id:maxId(DB.fluxo)+1,data:d.dtRec||today(),desc:d.desc+(d.cliente?" — "+d.cliente:""),cat:d.cat||"Mensalidades",tipo:"Entrada",valor:d.valor,conta:d.conta||getContasOpts()[0],conc:false,obs:"",receberId:d.id});
+        }
+        upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
       onDel:canDelete()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
     }));
     page.appendChild(secEl);
