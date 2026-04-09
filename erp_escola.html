@@ -1162,7 +1162,7 @@ function pageAlunos(){
     tSel.appendChild(h("option",{value:"Todos"},"Todas as turmas"));TURMAS.forEach(function(t){var op=h("option",{value:t},t);if(t===filtroTurma)op.selected=true;tSel.appendChild(op);});
     bar.appendChild(tSel);bar.appendChild(ftabs(["Todos","Ativo","Inativo"],filtro,"#6D28D9",function(v){filtro=v;rebuild();}));
     var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Novo Aluno",data:{status:"Ativo",mens:800,dtMatricula:today()},fields:[
-      {k:"nome",label:"Nome do Aluno",req:true,full:true},{k:"responsavel",label:"Responsavel",full:true},
+      {k:"nome",label:"Nome do Aluno",req:true,full:true},{k:"responsavel",label:"Responsavel (Pai/Mae)",full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.tipo==="Pais"||c.tipo==="Cliente";}).map(function(c){return c.nome;})},
       {k:"cpf",label:"CPF do Aluno"},{k:"dtMatricula",label:"Data Matricula",type:"date"},
       {k:"turma",label:"Turma",type:"select",options:TURMAS},{k:"mens",label:"Mensalidade R$",type:"number"},
       {k:"tel",label:"Telefone"},{k:"email",label:"Email"},
@@ -1176,7 +1176,7 @@ function pageAlunos(){
     page.appendChild(sec("Alunos ("+r.length+")",[],tbl(cols,r,{
       onWpp:function(row){abrirWhatsApp({nome:row.nome,tel:row.tel||""});},
       onEdit:function(row){openModal({title:"Editar Aluno",data:Object.assign({},row),fields:[
-        {k:"nome",label:"Nome",full:true},{k:"responsavel",label:"Responsavel",full:true},{k:"cpf",label:"CPF"},{k:"dtMatricula",label:"Data Matricula",type:"date"},
+        {k:"nome",label:"Nome",full:true},{k:"responsavel",label:"Responsavel (Pai/Mae)",full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.tipo==="Pais"||c.tipo==="Cliente";}).map(function(c){return c.nome;})},{k:"cpf",label:"CPF"},{k:"dtMatricula",label:"Data Matricula",type:"date"},
         {k:"turma",label:"Turma",type:"select",options:TURMAS},{k:"mens",label:"Mensalidade R$",type:"number"},{k:"tel",label:"Telefone"},{k:"email",label:"Email"},
         {k:"status",label:"Status",type:"select",options:["Ativo","Inativo"]},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){upd("alunos",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
