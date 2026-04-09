@@ -256,7 +256,7 @@ function dedupFluxo(){
 
 function iniciarListenerDB(){
   if(_dbUnsubscribe) return;
-  // 1) Carrega local imediatamente
+  // 1) Carrega local imediatamente — app funciona sem esperar Firestore
   var local=null;
   try{var s=localStorage.getItem("erp_escola");var p=s?JSON.parse(s):null;if(p&&p.pagar)local=p;}catch(e){}
   DB=local||seedDB();
@@ -271,15 +271,23 @@ function iniciarListenerDB(){
     _dbUnsubscribe=DB_REF.onSnapshot(function(doc){
       if(doc.exists){
         var fs=doc.data();
-        if((fs.updatedAt||0)>(DB.updatedAt||0)){
+        var fsTime=fs.updatedAt||0;
+        var lcTime=DB.updatedAt||0;
+        // Firestore só vence se for genuinamente mais recente E tiver dados
+        // Se local fez reset (updatedAt maior), Firestore é ignorado e sobrescrito
+        if(fsTime>lcTime){
           DB=fs;
           if(DB.usuarios) CUSTOM_USERS=DB.usuarios;
           try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
           dedupFluxo();
           atualizarStatus();
           render();
+        } else if(lcTime>fsTime){
+          // Local é mais recente — envia para o Firestore
+          DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.warn(e.code);});
         }
       } else {
+        // Documento não existe — cria com dados locais
         DB.updatedAt=Date.now();
         DB_REF.set(JSON.parse(JSON.stringify(DB))).catch(function(e){console.warn(e.code);});
       }
@@ -1461,13 +1469,27 @@ function pageConfig(){
     if(!confirm("Ultima confirmacao: apagar tudo?"))return;
     DB.pagar=[];DB.receber=[];DB.clientes=[];DB.fornec=[];
     DB.alunos=[];DB.cursos=[];DB.fluxo=[];DB.contasBancarias=[];
-    DB.updatedAt=Date.now();
-    // Salva no localStorage E no Firestore
+    DB.updatedAt=Date.now()+5000; // +5s para garantir que local vence o Firestore
     try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
     DB_REF.set(JSON.parse(JSON.stringify(DB))).then(function(){
-      render();alert("Dados apagados. Sistema pronto para uso real.");
+      render();alert("Dados apagados com sucesso!");
     }).catch(function(){render();alert("Dados apagados localmente.");});
   }},null);zerarBtn.appendChild(document.createTextNode("Apagar todos os dados"));zerarBody.appendChild(zerarBtn);
+
+  var resetBtn=h("button",{"class":"btn danger",style:{marginTop:"8px"},onclick:function(){
+    if(!confirm("RESET COMPLETO: apaga tudo inclusive dados ocultos no servidor. Confirma?"))return;
+    if(!confirm("Ultima confirmacao?"))return;
+    var cfgSalva=Object.assign({},DB.config||{});
+    DB_REF.delete().then(function(){
+      localStorage.removeItem("erp_escola");
+      DB={pagar:[],receber:[],clientes:[],fornec:[],alunos:[],cursos:[],fluxo:[],contasBancarias:[],usuarios:CUSTOM_USERS,
+        config:cfgSalva, updatedAt:Date.now()+10000};
+      DB_REF.set(JSON.parse(JSON.stringify(DB))).then(function(){
+        try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
+        render();alert("Sistema resetado completamente!");
+      });
+    }).catch(function(e){alert("Erro: "+e.message);});
+  }},null);resetBtn.appendChild(document.createTextNode("Reset completo (apaga servidor tambem)"));zerarBody.appendChild(resetBtn);
   page.appendChild(sec("Zerar Dados",[],zerarBody,false));
   return page;
 }
