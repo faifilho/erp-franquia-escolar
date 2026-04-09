@@ -237,6 +237,23 @@ function atualizarStatus(){
   if(changed) saveDB();
 }
 
+// Remove lançamentos duplicados no fluxo (mesmo pagarId ou receberId)
+function dedupFluxo(){
+  var vistoPagar={};var vistoReceber={};var changed=false;
+  DB.fluxo=(DB.fluxo||[]).filter(function(f){
+    if(f.pagarId!=null){
+      if(vistoPagar[f.pagarId])return (changed=true,false);
+      vistoPagar[f.pagarId]=true;
+    }
+    if(f.receberId!=null){
+      if(vistoReceber[f.receberId])return (changed=true,false);
+      vistoReceber[f.receberId]=true;
+    }
+    return true;
+  });
+  if(changed) saveDB();
+}
+
 function iniciarListenerDB(){
   if(_dbUnsubscribe) return;
   // 1) Carrega local imediatamente
@@ -245,6 +262,7 @@ function iniciarListenerDB(){
   DB=local||seedDB();
   if(!local) try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
   if(DB.usuarios) CUSTOM_USERS=DB.usuarios;
+  dedupFluxo();
   atualizarStatus();
   _dbReady=true;
   render();
@@ -257,6 +275,7 @@ function iniciarListenerDB(){
           DB=fs;
           if(DB.usuarios) CUSTOM_USERS=DB.usuarios;
           try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
+          dedupFluxo();
           atualizarStatus();
           render();
         }
@@ -306,10 +325,7 @@ function seedDB(){
     db.pagar.push({id:pid++,forn:r[0],desc:r[1],cat:r[2],valor:r[3],venc:ANO+"-"+zp(MES)+"-10",dtPag:"",status:"Pendente",forma:"Transferencia",conta:"",parcelas:1,obs:""});
   });
   for(var m=Math.max(1,MES-2);m<=MES;m++){
-    db.fluxo.push({id:db.fluxo.length+1,data:ANO+"-"+zp(m)+"-01",desc:"Mensalidades "+MESES[m-1],cat:"Mensalidades",tipo:"Entrada",valor:Math.round(42000*(1+(m-1)*0.02)),conta:"Conta Principal",conc:m<MES,obs:""});
-    db.fluxo.push({id:db.fluxo.length+1,data:ANO+"-"+zp(m)+"-05",desc:"Aluguel "+MESES[m-1],cat:"Aluguel",tipo:"Saida",valor:5000,conta:"Conta Principal",conc:m<MES,obs:""});
-    db.fluxo.push({id:db.fluxo.length+1,data:ANO+"-"+zp(m)+"-10",desc:"Royalties "+MESES[m-1],cat:"Royalties/Franquia",tipo:"Saida",valor:8500,conta:"Conta Principal",conc:m<MES,obs:""});
-    db.fluxo.push({id:db.fluxo.length+1,data:ANO+"-"+zp(m)+"-15",desc:"Salarios "+MESES[m-1],cat:"Salarios Professores",tipo:"Saida",valor:18000,conta:"Conta Principal",conc:m<MES,obs:""});
+    // sem lançamentos de demonstração — fluxo começa vazio
   }
   return db;
 }
@@ -657,11 +673,11 @@ function pageDash(){
   var inadim=fR.filter(function(r){return r.status==="Vencido";}).length;
   var page=h("div",{"class":"page"},null);
   var g=h("div",{"class":"kpi-grid"},null);
-  g.appendChild(kpi("Receitas (acum.)",BRL(totEnt),"Margem: "+PCT(totEnt>0?saldo/totEnt:0),"up","receber","#15803D","#DCFCE7"));
-  g.appendChild(kpi("Despesas (acum.)",BRL(totSai),"","dn","pagar","#B91C1C","#FEE2E2"));
-  g.appendChild(kpi("Saldo em Caixa",BRL(saldo),"Receitas - Despesas",saldo>=0?"up":"dn","fluxo","#0284C7","#E0F2FE"));
-  g.appendChild(kpi("A Pagar",BRL(aPagar),"Vencido: "+BRL(vencPagar),"dn","fluxo","#C2410C","#FFEDD5"));
-  g.appendChild(kpi("A Receber",BRL(aReceber),"Vencido: "+BRL(vencRec),"dn","receber","#0F766E","#CCFBF1"));
+  g.appendChild(kpi("Receitas Recebidas",BRL(totEnt),"Entradas no caixa no periodo","up","receber","#15803D","#DCFCE7"));
+  g.appendChild(kpi("Despesas Pagas",BRL(totSai),"Saidas do caixa no periodo","dn","pagar","#B91C1C","#FEE2E2"));
+  g.appendChild(kpi("Saldo em Caixa",BRL(saldo),"Recebido - Pago",saldo>=0?"up":"dn","fluxo","#0284C7","#E0F2FE"));
+  g.appendChild(kpi("A Pagar (aberto)",BRL(aPagar),"Pendente+Vencido: "+BRL(vencPagar),"dn","fluxo","#C2410C","#FFEDD5"));
+  g.appendChild(kpi("A Receber (aberto)",BRL(aReceber),"Pendente+Vencido: "+BRL(vencRec),"dn","receber","#0F766E","#CCFBF1"));
   g.appendChild(kpi("Alunos Ativos",ativos,"Inadimplentes: "+inadim,inadim>0?"dn":"","alunos","#6D28D9","#EDE9FE"));
   page.appendChild(g);
   // Alertas
@@ -764,11 +780,9 @@ function pagePagar(){
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
       onPag:function(row){
-        // Remove lançamento anterior deste registro (se existir)
+        // Sempre remove lançamento anterior deste ID antes de criar novo (evita duplicatas)
         DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.pagarId!==row.id;});
-        // Atualiza status
         DB.pagar=(DB.pagar||[]).map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});
-        // Cria lançamento de saída vinculado
         DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+(row.forn?" — "+row.forn:""),cat:row.cat||"Outras Despesas",tipo:"Saida",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"",pagarId:row.id});
         saveDB();rebuild();
       },
@@ -782,7 +796,10 @@ function pagePagar(){
           DB.fluxo.push({id:maxId(DB.fluxo)+1,data:d.dtPag||today(),desc:d.desc+(d.forn?" — "+d.forn:""),cat:d.cat||"Outras Despesas",tipo:"Saida",valor:d.valor,conta:d.conta||getContasOpts()[0],conc:false,obs:"",pagarId:d.id});
         }
         upd("pagar",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
-      onDel:canDelete()?function(id){upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.pagarId!==id;});
+        upd("pagar",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();
+      }:null,
     }));
     page.appendChild(secEl);
   }
@@ -854,11 +871,9 @@ function pageReceber(){
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
       onRec:function(row){
-        // Remove lançamento anterior deste registro (se existir)
+        // Sempre remove lançamento anterior deste ID antes de criar novo (evita duplicatas)
         DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.receberId!==row.id;});
-        // Atualiza status
         DB.receber=(DB.receber||[]).map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});
-        // Cria lançamento de entrada vinculado
         DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+(row.cliente?" — "+row.cliente:""),cat:row.cat||"Mensalidades",tipo:"Entrada",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"",receberId:row.id});
         saveDB();rebuild();
       },
@@ -872,7 +887,10 @@ function pageReceber(){
           DB.fluxo.push({id:maxId(DB.fluxo)+1,data:d.dtRec||today(),desc:d.desc+(d.cliente?" — "+d.cliente:""),cat:d.cat||"Mensalidades",tipo:"Entrada",valor:d.valor,conta:d.conta||getContasOpts()[0],conc:false,obs:"",receberId:d.id});
         }
         upd("receber",function(arr){return arr.map(function(x){return x.id===d.id?d:x;});});rebuild();}});},
-      onDel:canDelete()?function(id){upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();}:null,
+      onDel:canDelete()?function(id){
+        DB.fluxo=(DB.fluxo||[]).filter(function(f){return f.receberId!==id;});
+        upd("receber",function(arr){return arr.filter(function(x){return x.id!==id;});});rebuild();
+      }:null,
     }));
     page.appendChild(secEl);
   }
@@ -1438,7 +1456,18 @@ function pageConfig(){
   // Zerar
   var zerarBody=h("div",{"class":"sec-pad"},null);
   zerarBody.appendChild(h("p",{style:{fontSize:"12px",color:"#64748B",marginBottom:"10px"}},"Apaga todos os registros (contas, alunos, lancamentos) mantendo as configuracoes."));
-  var zerarBtn=h("button",{"class":"btn danger",onclick:function(){if(!confirm("Apagar TODOS os registros? Configuracoes e usuarios serao mantidos."))return;if(!confirm("Ultima confirmacao: apagar tudo?"))return;DB.pagar=[];DB.receber=[];DB.clientes=[];DB.fornec=[];DB.alunos=[];DB.cursos=[];DB.fluxo=[];DB.contasBancarias=[];saveDB();render();alert("Dados apagados. Sistema pronto para uso real.");}},null);zerarBtn.appendChild(document.createTextNode("Apagar todos os dados"));zerarBody.appendChild(zerarBtn);
+  var zerarBtn=h("button",{"class":"btn danger",onclick:function(){
+    if(!confirm("Apagar TODOS os registros? Configuracoes e usuarios serao mantidos."))return;
+    if(!confirm("Ultima confirmacao: apagar tudo?"))return;
+    DB.pagar=[];DB.receber=[];DB.clientes=[];DB.fornec=[];
+    DB.alunos=[];DB.cursos=[];DB.fluxo=[];DB.contasBancarias=[];
+    DB.updatedAt=Date.now();
+    // Salva no localStorage E no Firestore
+    try{localStorage.setItem("erp_escola",JSON.stringify(DB));}catch(e){}
+    DB_REF.set(JSON.parse(JSON.stringify(DB))).then(function(){
+      render();alert("Dados apagados. Sistema pronto para uso real.");
+    }).catch(function(){render();alert("Dados apagados localmente.");});
+  }},null);zerarBtn.appendChild(document.createTextNode("Apagar todos os dados"));zerarBody.appendChild(zerarBtn);
   page.appendChild(sec("Zerar Dados",[],zerarBody,false));
   return page;
 }
