@@ -574,8 +574,8 @@ function tbl(cols,rows,opts){
     if(opts.onEdit||opts.onDel||opts.onPag||opts.onRec||opts.onWpp){
       var atd=h("td",{style:{textAlign:"right",whiteSpace:"nowrap"}},null);
       var abg=h("div",{style:{display:"flex",gap:"2px",justifyContent:"flex-end"}},null);
-      if(opts.onPag){var pb=h("button",{"class":"btn xs success",onclick:function(){opts.onPag(row);}},null);pb.innerHTML=S.check;pb.appendChild(document.createTextNode(" Pagar"));abg.appendChild(pb);}
-      if(opts.onRec){var rb=h("button",{"class":"btn xs success",onclick:function(){opts.onRec(row);}},null);rb.innerHTML=S.check;rb.appendChild(document.createTextNode(" Receber"));abg.appendChild(rb);}
+      if(opts.onPag){if(row.status==="Pendente"||row.status==="Vencido"){var pb=h("button",{"class":"btn xs success",onclick:function(){opts.onPag(row);}},null);pb.innerHTML=S.check;pb.appendChild(document.createTextNode(" Pagar"));abg.appendChild(pb);}}
+      if(opts.onRec){if(row.status==="Pendente"||row.status==="Vencido"){var rb=h("button",{"class":"btn xs success",onclick:function(){opts.onRec(row);}},null);rb.innerHTML=S.check;rb.appendChild(document.createTextNode(" Receber"));abg.appendChild(rb);}}
       if(opts.onWpp){var wb=h("button",{style:{padding:"3px",color:"#25D366"},title:"WhatsApp",onclick:function(){opts.onWpp(row);}},null);wb.innerHTML=S.whatsapp;abg.appendChild(wb);}
       if(opts.onEdit){var eb=h("button",{style:{padding:"3px",color:"#94A3B8"},onclick:function(){opts.onEdit(row);}},null);eb.innerHTML=S.edit;abg.appendChild(eb);}
       if(opts.onDel){var db2=h("button",{style:{padding:"3px",color:"#EF4444"},onclick:function(){if(confirm("Excluir?"))opts.onDel(row.id);}},null);db2.innerHTML=S.del;abg.appendChild(db2);}
@@ -590,13 +590,22 @@ function tbl(cols,rows,opts){
 function registrarLote(key,dt,forma){
   var ids=Object.keys(STATE.loteSelected).filter(function(id){return STATE.loteSelected[id];});
   if(!ids.length)return alert("Selecione ao menos um registro.");
+  var registrados=[];
   upd(key,function(arr){return arr.map(function(r){
     if(ids.indexOf(String(r.id))>=0||ids.indexOf(r.id)>=0){
       var sf=key==="pagar"?"Pago":"Recebido";var df=key==="pagar"?"dtPag":"dtRec";
-      var u2=Object.assign({},r);u2.status=sf;u2[df]=dt||today();u2.forma=forma||u2.forma;return u2;
+      var u2=Object.assign({},r);u2.status=sf;u2[df]=dt||today();u2.forma=forma||u2.forma;
+      registrados.push(u2);return u2;
     }
     return r;
   });});
+  // Cria lançamentos no fluxo para cada registro
+  if(!DB.fluxo)DB.fluxo=[];
+  registrados.forEach(function(r){
+    var nomeRef=key==="pagar"?r.forn:r.cliente;
+    DB.fluxo.push({id:maxId(DB.fluxo)+1,data:dt||today(),desc:r.desc+(nomeRef?" — "+nomeRef:""),cat:r.cat||(key==="pagar"?"Outras Despesas":"Mensalidades"),tipo:key==="pagar"?"Saida":"Entrada",valor:r.valor,conta:r.conta||getContasOpts()[0],conc:false,obs:"Lote"});
+  });
+  saveDB();
   STATE.loteSelected={};
 }
 
@@ -748,7 +757,13 @@ function pagePagar(){
     secEl.querySelector(".sec-body").appendChild(loteBar);
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
-      onPag:function(row){upd("pagar",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});});rebuild();},
+      onPag:function(row){
+        upd("pagar",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Pago",dtPag:today()}):x;});});
+        // Cria lançamento de saída no fluxo de caixa
+        if(!DB.fluxo) DB.fluxo=[];
+        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+" — "+row.forn,cat:row.cat||"Outras Despesas",tipo:"Saida",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"Gerado automaticamente ao pagar"});
+        saveDB();rebuild();
+      },
       onEdit:function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
         {k:"forn",label:"Fornecedor",full:true,type:"datalist",placeholder:"Digite o nome...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
@@ -824,7 +839,13 @@ function pageReceber(){
     secEl.querySelector(".sec-body").appendChild(loteBar);secEl.querySelector(".sec-body").appendChild(pixBar);
     secEl.querySelector(".sec-body").appendChild(tbl(cols,r,{
       onSel:function(){rebuild();},
-      onRec:function(row){upd("receber",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});});rebuild();},
+      onRec:function(row){
+        upd("receber",function(arr){return arr.map(function(x){return x.id===row.id?Object.assign({},x,{status:"Recebido",dtRec:today()}):x;});});
+        // Cria lançamento de entrada no fluxo de caixa
+        if(!DB.fluxo) DB.fluxo=[];
+        DB.fluxo.push({id:maxId(DB.fluxo)+1,data:today(),desc:row.desc+" — "+row.cliente,cat:row.cat||"Mensalidades",tipo:"Entrada",valor:row.valor,conta:row.conta||getContasOpts()[0],conc:false,obs:"Gerado automaticamente ao receber"});
+        saveDB();rebuild();
+      },
       onEdit:function(row){openModal({title:"Editar Conta a Receber",data:Object.assign({},row),fields:[
         {k:"cliente",label:"Cliente",full:true,type:"datalist",options:(DB.clientes||[]).filter(function(c){return c.status==="Ativo";}).map(function(c){return c.nome;})},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_RECEBER},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtRec",label:"Data Recebimento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_REC},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
