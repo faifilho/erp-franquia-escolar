@@ -669,17 +669,17 @@ function gerarCobrancasMensais(mes,ano){
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 function pageDash(){
-  var fP=DB.pagar||[];var fR=DB.receber||[];var fA=DB.alunos||[];
-  // Saldo calculado direto das contas — sem depender do fluxo
+  var fF=DB.fluxo||[];var fP=DB.pagar||[];var fR=DB.receber||[];var fA=DB.alunos||[];
+  // Saldo calculado direto das contas
   var totEnt=fR.filter(function(r){return r.status==="Recebido";}).reduce(function(s,r){return s+r.valor;},0);
   var totSai=fP.filter(function(p){return p.status==="Pago";}).reduce(function(s,p){return s+p.valor;},0);
-  // Adiciona saldo inicial das contas bancárias
   var saldoInicial=(DB.contasBancarias||[]).reduce(function(s,c){return s+(+c.saldoInicial||0);},0);
-  // Adiciona lançamentos manuais do fluxo (que não são gerados por pagar/receber)
-  var fluxoManual=(DB.fluxo||[]).filter(function(f){return !f.pagarId&&!f.receberId;});
+  var fluxoManual=fF.filter(function(f){return !f.pagarId&&!f.receberId;});
   var entManual=fluxoManual.filter(function(f){return f.tipo==="Entrada";}).reduce(function(s,f){return s+f.valor;},0);
   var saiManual=fluxoManual.filter(function(f){return f.tipo==="Saida";}).reduce(function(s,f){return s+f.valor;},0);
-  var saldo=(totEnt+saldoInicial+entManual)-totSai-saiManual;
+  totEnt=totEnt+saldoInicial+entManual;
+  totSai=totSai+saiManual;
+  var saldo=totEnt-totSai;
   var aPagar=fP.filter(function(p){return p.status==="Pendente"||p.status==="Vencido";}).reduce(function(s,p){return s+p.valor;},0);
   var aReceber=fR.filter(function(r){return r.status==="Pendente"||r.status==="Vencido";}).reduce(function(s,r){return s+r.valor;},0);
   var vencPagar=fP.filter(function(p){return p.status==="Vencido";}).reduce(function(s,p){return s+p.valor;},0);
@@ -772,7 +772,7 @@ function pagePagar(){
     bar.appendChild(sm);
     bar.appendChild(ftabs(["Todos","Pendente","Pago","Vencido","Cancelado"],filtro,"#B91C1C",function(v){filtro=v;rebuild();}));
     var addBtn=h("button",{"class":"btn primary",onclick:function(){openModal({title:"Nova Conta a Pagar",data:{status:"Pendente",venc:addDias(10),dtPag:"",parcelas:1},fields:[
-      {k:"forn",label:"Fornecedor",req:true,full:true,type:"datalist",placeholder:"Digite o nome do fornecedor...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},
+      {k:"forn",label:"Fornecedor",req:true,full:true,type:"datalist",placeholder:"Digite o nome do fornecedor...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){if(f.nome)nomes[f.nome]=1;});(DB.clientes||[]).forEach(function(c){if(c.nome)nomes[c.nome]=1;});(DB.pagar||[]).forEach(function(p){if(p.forn)nomes[p.forn]=1;});return Object.keys(nomes).sort();})()},
       {k:"desc",label:"Descricao",req:true,full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},
       {k:"forma",label:"Forma",type:"select",options:FORMAS_PG},{k:"valor",label:"Valor R$",type:"number",req:true},
       {k:"venc",label:"Vencimento",type:"date",req:true},{k:"dtPag",label:"Data Pagamento",type:"date"},
@@ -802,7 +802,7 @@ function pagePagar(){
         saveDB();rebuild();
       },
       onEdit:function(row){openModal({title:"Editar Conta a Pagar",data:Object.assign({},row),fields:[
-        {k:"forn",label:"Fornecedor",full:true,type:"datalist",placeholder:"Digite o nome...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){nomes[f.nome]=1;});(DB.clientes||[]).filter(function(c){return c.tipo==="Fornecedor"||c.tipo==="Cliente e Fornecedor";}).forEach(function(c){nomes[c.nome]=1;});return Object.keys(nomes).sort();})()},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
+        {k:"forn",label:"Fornecedor",full:true,type:"datalist",placeholder:"Digite o nome...",options:(function(){var nomes={};(DB.fornec||[]).forEach(function(f){if(f.nome)nomes[f.nome]=1;});(DB.clientes||[]).forEach(function(c){if(c.nome)nomes[c.nome]=1;});(DB.pagar||[]).forEach(function(p){if(p.forn)nomes[p.forn]=1;});return Object.keys(nomes).sort();})()},{k:"desc",label:"Descricao",full:true},{k:"cat",label:"Categoria",type:"select",options:CATS_PAGAR},{k:"forma",label:"Forma",type:"select",options:FORMAS_PG},
         {k:"valor",label:"Valor R$",type:"number"},{k:"venc",label:"Vencimento",type:"date"},{k:"dtPag",label:"Data Pagamento",type:"date"},{k:"status",label:"Status",type:"select",options:STATUS_PG},{k:"conta",label:"Conta",type:"select",options:getContasOpts()},{k:"obs",label:"Obs",type:"textarea",full:true}
       ],onSave:function(d){
         // Sincroniza fluxo conforme status
