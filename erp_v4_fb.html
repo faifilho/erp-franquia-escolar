@@ -1,0 +1,2577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ERP Franquia Escolar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+<style>
+/* ============================================================
+   RESET + VARIABLES
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f4;
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --text: #1c1917;
+  --text-muted: #78716c;
+  --text-subtle: #a8a29e;
+
+  --primary: #1e40af;
+  --primary-hover: #1e3a8a;
+  --primary-soft: #eff6ff;
+
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
+
+  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --sidebar-w: 240px;
+  --header-h: 64px;
+}
+
+html,body{height:100%}
+body{
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+table{border-collapse:collapse;width:100%}
+a{color:inherit;text-decoration:none}
+
+/* ============================================================
+   LOGIN SCREEN
+   ============================================================ */
+.login-wrap{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background: linear-gradient(135deg, #f5f5f4 0%, #ffffff 100%);
+  padding: 24px;
+}
+.login-card{
+  width:100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: var(--shadow-lg);
+}
+.login-brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:32px;
+}
+.login-brand-mark{
+  width:40px;height:40px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: white;
+  display:grid;place-items:center;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.login-brand-title{
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.login-brand-sub{
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.login-title{
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.login-sub{
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 28px;
+}
+.login-error{
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 16px;
+  border: 1px solid #fecaca;
+}
+.login-hint{
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-align:center;
+}
+.login-hint code{
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.app{
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--header-h) 1fr;
+  grid-template-areas:
+    "sidebar header"
+    "sidebar main";
+  min-height: 100vh;
+}
+.sidebar{
+  grid-area: sidebar;
+  background: #0c0a09;
+  color: #e7e5e4;
+  padding: 20px 16px;
+  display:flex;
+  flex-direction:column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar-brand{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 4px 8px 20px;
+  border-bottom: 1px solid #292524;
+  margin-bottom: 16px;
+}
+.sidebar-brand-mark{
+  width: 32px;height:32px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  display:grid;place-items:center;
+  font-weight: 800;
+  font-size: 14px;
+}
+.sidebar-brand-title{
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.sidebar-brand-sub{
+  font-size: 10px;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+.nav-section{
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #78716c;
+  padding: 16px 8px 8px;
+  font-weight: 600;
+}
+.nav-item{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #d6d3d1;
+  cursor:pointer;
+  transition: background 0.12s, color 0.12s;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover{background: #1c1917;color:#fafaf9}
+.nav-item.active{background: var(--primary);color: white}
+.nav-item-icon{
+  width:18px;height:18px;
+  display:grid;place-items:center;
+  flex-shrink:0;
+}
+.nav-item-icon svg{width:16px;height:16px;stroke-width:2}
+.sidebar-footer{
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #292524;
+}
+.sidebar-user{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+}
+.sidebar-user-avatar{
+  width:32px;height:32px;
+  border-radius:50%;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  display:grid;place-items:center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sidebar-user-info{
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-user-name{
+  font-size: 12px;
+  font-weight: 600;
+  color: #fafaf9;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.sidebar-user-role{
+  font-size: 10px;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sidebar-logout{
+  color: #a8a29e;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background 0.12s;
+  display:grid;place-items:center;
+  flex-shrink: 0;
+}
+.sidebar-logout:hover{background: #1c1917;color:#fafaf9}
+.sidebar-logout svg{width:16px;height:16px}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header{
+  grid-area: header;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 0 32px;
+  gap: 24px;
+}
+.header-title{
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.header-sub{
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.header-right{
+  display:flex;
+  align-items:center;
+  gap: 16px;
+}
+.empresa-selector{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.empresa-selector select{
+  border:none;background:transparent;
+  font-weight: 600;
+  cursor:pointer;
+  outline: none;
+  padding-right: 4px;
+}
+.empresa-dot{
+  width:8px;height:8px;border-radius:50%;
+  background: var(--primary);
+}
+
+/* ============================================================
+   MAIN + PAGES
+   ============================================================ */
+.main{
+  grid-area: main;
+  padding: 32px;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--header-h));
+}
+.page-actions{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.filters{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   CARDS + METRICS
+   ============================================================ */
+.grid-metrics{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.metric-card{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: border-color 0.15s;
+}
+.metric-card:hover{border-color: var(--border-strong)}
+.metric-label{
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.metric-value{
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-family: var(--font-mono);
+}
+.metric-value.positive{color: var(--success)}
+.metric-value.negative{color: var(--danger)}
+.metric-hint{
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-top: 6px;
+}
+
+.card{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.card-header{
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.card-title{
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.card-body{padding: 20px}
+.card-empty{
+  padding: 48px 20px;
+  text-align:center;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.btn:focus-visible{outline: 2px solid var(--primary);outline-offset: 2px}
+.btn svg{width:14px;height:14px;stroke-width:2.5}
+.btn-primary{background: var(--primary);color: white}
+.btn-primary:hover{background: var(--primary-hover)}
+.btn-secondary{background: var(--surface);color: var(--text);border-color: var(--border)}
+.btn-secondary:hover{background: var(--surface-2);border-color: var(--border-strong)}
+.btn-ghost{color: var(--text-muted)}
+.btn-ghost:hover{background: var(--surface-2);color: var(--text)}
+.btn-danger{background: var(--danger);color: white}
+.btn-danger:hover{background: #991b1b}
+.btn-success{background: var(--success);color: white}
+.btn-success:hover{background: #166534}
+.btn-sm{padding: 5px 10px;font-size: 12px}
+.btn-sm svg{width:12px;height:12px}
+.btn-icon{padding: 6px;border-radius: 6px}
+
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+.form-group{margin-bottom: 14px}
+.form-label{
+  display:block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-label .req{color: var(--danger)}
+.form-control{
+  width:100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.form-control:focus{
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+.form-control:disabled{
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+select.form-control{
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  appearance: none;
+}
+textarea.form-control{resize: vertical;min-height: 70px;font-family: inherit}
+.form-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form-row-3{
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.form-error{
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 4px;
+  font-weight: 500;
+}
+.form-hint{
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Search input */
+.search-input{
+  position: relative;
+  display:inline-flex;
+  align-items:center;
+  min-width: 260px;
+}
+.search-input svg{
+  position:absolute;
+  left: 10px;
+  width:14px;height:14px;
+  color: var(--text-subtle);
+  pointer-events:none;
+}
+.search-input input{
+  width:100%;
+  padding: 8px 12px 8px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+  transition: border-color 0.12s;
+}
+.search-input input:focus{
+  outline:none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+.table-wrap{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.data-table{
+  width:100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table thead{
+  background: var(--surface-2);
+}
+.data-table th{
+  text-align:left;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td{
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.data-table tbody tr:hover{background: var(--surface-2)}
+.data-table tbody tr:last-child td{border-bottom: none}
+.data-table .num{
+  font-family: var(--font-mono);
+  text-align: right;
+  font-weight: 600;
+}
+.data-table .actions{
+  text-align: right;
+  white-space: nowrap;
+}
+.data-table .actions .btn-icon{color: var(--text-muted);margin-left: 2px}
+.data-table .actions .btn-icon:hover{background: var(--surface-2);color: var(--text)}
+.data-table .actions .btn-icon.danger:hover{background: var(--danger-soft);color: var(--danger)}
+
+/* Status Badges */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.badge-success{background: var(--success-soft);color: var(--success)}
+.badge-warning{background: var(--warning-soft);color: var(--warning)}
+.badge-danger{background: var(--danger-soft);color: var(--danger)}
+.badge-neutral{background: var(--surface-2);color: var(--text-muted)}
+.badge-primary{background: var(--primary-soft);color: var(--primary)}
+.badge-dot{
+  width: 5px;height:5px;border-radius:50%;
+  background: currentColor;
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal-backdrop{
+  position:fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display:grid;
+  place-items:center;
+  z-index: 100;
+  padding: 24px;
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform: translateY(8px)}to{opacity:1;transform: translateY(0)}}
+.modal{
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display:flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.2s ease-out;
+}
+.modal-lg{max-width: 720px}
+.modal-header{
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.modal-title{
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.modal-close{
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 6px;
+}
+.modal-close:hover{background: var(--surface-2);color: var(--text)}
+.modal-close svg{width:18px;height:18px}
+.modal-body{
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.modal-footer{
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  display:flex;
+  gap: 10px;
+  justify-content:flex-end;
+  background: var(--surface-2);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast-container{
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 200;
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 240px;
+  max-width: 380px;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  animation: toastIn 0.2s ease-out;
+  pointer-events: auto;
+}
+@keyframes toastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.toast.success{border-left-color: var(--success)}
+.toast.success svg{color: var(--success)}
+.toast.error{border-left-color: var(--danger)}
+.toast.error svg{color: var(--danger)}
+.toast.warning{border-left-color: var(--warning)}
+.toast.warning svg{color: var(--warning)}
+.toast svg{width:16px;height:16px;flex-shrink:0;color: var(--primary)}
+
+/* ============================================================
+   DASHBOARD SPECIFIC
+   ============================================================ */
+.dash-grid{
+  display:grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+.recent-list{
+  display:flex;
+  flex-direction:column;
+}
+.recent-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.recent-item:last-child{border-bottom:none}
+.recent-info{min-width: 0;flex: 1}
+.recent-title{
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.recent-meta{
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.recent-value{
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  margin-left: 12px;
+}
+.recent-value.positive{color: var(--success)}
+.recent-value.negative{color: var(--danger)}
+
+/* Empty state */
+.empty-state{
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+.empty-state-icon{
+  width:48px;height:48px;
+  margin: 0 auto 12px;
+  background: var(--surface-2);
+  border-radius: 50%;
+  display:grid;place-items:center;
+  color: var(--text-subtle);
+}
+.empty-state-title{
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.empty-state-sub{
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Responsive — basic support */
+@media (max-width: 1024px){
+  .app{grid-template-columns: 1fr;grid-template-areas: "header" "main"}
+  .sidebar{display:none}
+  .dash-grid{grid-template-columns: 1fr}
+  .main{padding: 20px}
+  .header{padding: 0 20px}
+  .form-row,.form-row-3{grid-template-columns: 1fr}
+}
+
+/* Loading screen */
+.loading-screen{
+  position:fixed;inset:0;
+  background: var(--bg);
+  display:grid;place-items:center;
+  z-index: 1000;
+}
+.loading-inner{text-align:center}
+.loading-spinner{
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform: rotate(360deg)}}
+.loading-text{
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Tiny helpers */
+.hidden{display:none !important}
+.text-muted{color: var(--text-muted)}
+.text-subtle{color: var(--text-subtle)}
+.text-right{text-align:right}
+.text-center{text-align:center}
+.fw-700{font-weight:700}
+.mono{font-family: var(--font-mono)}
+.mb-0{margin-bottom: 0}
+.mt-12{margin-top: 12px}
+.mt-24{margin-top: 24px}
+.flex{display:flex}
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.gap-8{gap: 8px}
+.gap-12{gap: 12px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+<div class="toast-container" id="toast-root"></div>
+
+<script>
+/* ============================================================
+   ERP FRANQUIA ESCOLAR — V4
+   Reescrita completa. Single-file. Vanilla JS.
+   Auth Firebase. Dados no Firestore.
+   ============================================================ */
+
+/* =========================================
+   1. CONFIG + CONSTANTES
+   ========================================= */
+const APP_NAME = 'ERP Franquia Escolar';
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC57PPJT-T-kULbdZU8dR1OOrRELY0S9_Y",
+  authDomain: "erp-franquia-escolar.firebaseapp.com",
+  projectId: "erp-franquia-escolar",
+  messagingSenderId: "881570951200",
+  appId: "1:881570951200:web:4377127f87dac025904c45"
+};
+
+const ROLES = {
+  admin: { label: 'Administrador', perms: ['*'] },
+  diretor: { label: 'Diretor', perms: ['dashboard','financeiro','pagar','receber','fornecedores','clientes','produtos','relatorios'] },
+  financeiro: { label: 'Financeiro', perms: ['dashboard','financeiro','pagar','receber','fornecedores','relatorios'] },
+  operacional: { label: 'Operacional', perms: ['dashboard','clientes','produtos'] }
+};
+
+const CATEGORIAS_ENTRADA = ['Mensalidade','Matrícula','Material didático','Venda avulsa','Outros'];
+const CATEGORIAS_SAIDA = ['Folha de pagamento','Aluguel','Energia/Água/Internet','Marketing','Royalties','Material','Impostos','Outros'];
+
+const COLLECTIONS = ['empresas','usuarios','clientes','produtos','fornecedores','lancamentos','pagar','receber'];
+
+/* =========================================
+   2. FIREBASE INIT + DATA LAYER
+   ========================================= */
+let FB_APP = null;
+let FB_AUTH = null;
+let FB_DB_FS = null; // Firestore instance
+let FB_READY = false;
+
+// Cache local dos dados (atualizado sob demanda)
+let DB = {
+  empresas: [], usuarios: [], clientes: [], produtos: [],
+  fornecedores: [], lancamentos: [], pagar: [], receber: []
+};
+let SESSION = null; // { uid, userData, empresaFilter }
+let FIRST_SETUP = false; // true durante criação do admin inicial
+
+function initFirebase(){
+  if (FB_APP) return;
+  FB_APP = firebase.initializeApp(FIREBASE_CONFIG);
+  FB_AUTH = firebase.auth();
+  FB_DB_FS = firebase.firestore();
+  FB_READY = true;
+}
+
+// Carrega uma coleção inteira do Firestore para o cache DB
+async function fbLoad(col){
+  try{
+    const snap = await FB_DB_FS.collection(col).get();
+    DB[col] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(e){
+    console.error('Erro ao carregar ' + col + ':', e);
+    DB[col] = [];
+  }
+}
+// Carrega todas as coleções em paralelo
+async function fbLoadAll(){
+  await Promise.all(COLLECTIONS.map(fbLoad));
+}
+// Adiciona um documento e recarrega o cache da coleção
+async function fbAdd(col, data){
+  const payload = { ...data, criadoEm: firebase.firestore.FieldValue.serverTimestamp() };
+  const ref = await FB_DB_FS.collection(col).add(payload);
+  await fbLoad(col);
+  return ref.id;
+}
+// Atualiza um documento
+async function fbUpdate(col, id, data){
+  await FB_DB_FS.collection(col).doc(id).update(data);
+  await fbLoad(col);
+}
+// Define (create ou replace) um documento com ID específico
+async function fbSet(col, id, data){
+  await FB_DB_FS.collection(col).doc(id).set(data);
+  await fbLoad(col);
+}
+// Deleta um documento
+async function fbDelete(col, id){
+  await FB_DB_FS.collection(col).doc(id).delete();
+  await fbLoad(col);
+}
+// Seed de empresas padrão (primeira vez)
+async function seedEmpresasSeVazio(){
+  if (DB.empresas.length > 0) return;
+  const padrao = [
+    { nome: 'Alfa', cidade: 'Belo Horizonte', cor: '#3b82f6', cnpj: '' },
+    { nome: 'Beta', cidade: 'Contagem', cor: '#10b981', cnpj: '' },
+    { nome: 'Gama', cidade: 'Nova Lima', cor: '#f59e0b', cnpj: '' }
+  ];
+  for (const e of padrao){
+    await FB_DB_FS.collection('empresas').add({ ...e, criadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+  }
+  await fbLoad('empresas');
+}
+
+/* =========================================
+   3. AUTH
+   ========================================= */
+function currentUser(){
+  if (!SESSION) return null;
+  return SESSION.userData;
+}
+
+async function handleAuthStateChanged(authUser){
+  if (!authUser){
+    SESSION = null;
+    LOADING = false;
+    render();
+    return;
+  }
+  // Tem usuário autenticado. Buscar doc /usuarios/{uid}
+  try{
+    const docRef = FB_DB_FS.collection('usuarios').doc(authUser.uid);
+    const doc = await docRef.get();
+
+    if (!doc.exists){
+      // Verificar se é o primeiro usuário (nenhum doc em /usuarios)
+      const allUsers = await FB_DB_FS.collection('usuarios').limit(1).get();
+      if (allUsers.empty){
+        // Primeiro login → vira admin automaticamente
+        const adminData = {
+          nome: authUser.displayName || authUser.email.split('@')[0],
+          email: authUser.email,
+          role: 'admin',
+          empresaId: null,
+          ativo: true,
+          criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await docRef.set(adminData);
+        SESSION = { uid: authUser.uid, userData: { id: authUser.uid, ...adminData }, empresaFilter: 'todas' };
+        await fbLoadAll();
+        await seedEmpresasSeVazio();
+        LOADING = false;
+        render();
+        toast('Conta admin criada com sucesso! Bem-vindo.', 'success');
+      } else {
+        // Usuário autenticado mas sem perfil → negar acesso
+        await FB_AUTH.signOut();
+        LOADING = false;
+        render();
+        setTimeout(() => toast('Usuário sem permissão. Peça ao administrador para cadastrá-lo.', 'error'), 100);
+      }
+      return;
+    }
+
+    const userData = { id: authUser.uid, ...doc.data() };
+    if (userData.ativo === false){
+      await FB_AUTH.signOut();
+      LOADING = false;
+      render();
+      setTimeout(() => toast('Sua conta está inativa.', 'error'), 100);
+      return;
+    }
+
+    SESSION = {
+      uid: authUser.uid,
+      userData,
+      empresaFilter: userData.role === 'admin' ? 'todas' : userData.empresaId
+    };
+    await fbLoadAll();
+    await seedEmpresasSeVazio();
+    LOADING = false;
+    render();
+  } catch(e){
+    console.error('Erro no auth state:', e);
+    LOADING = false;
+    render();
+    toast('Erro ao carregar dados: ' + e.message, 'error');
+  }
+}
+
+async function login(email, senha){
+  const e = (email || '').trim();
+  try{
+    await FB_AUTH.signInWithEmailAndPassword(e, senha);
+    return { ok: true };
+  } catch(err){
+    let msg = 'Erro ao entrar.';
+    if (err.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+    else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = 'E-mail ou senha incorretos.';
+    else if (err.code === 'auth/too-many-requests') msg = 'Muitas tentativas. Tente novamente em alguns minutos.';
+    else if (err.code === 'auth/network-request-failed') msg = 'Sem conexão com o servidor.';
+    else if (err.code === 'auth/user-disabled') msg = 'Usuário desabilitado.';
+    else if (err.message) msg = err.message;
+    return { ok: false, msg };
+  }
+}
+
+async function logout(){
+  try { await FB_AUTH.signOut(); } catch(e){ console.error(e); }
+}
+
+/* =========================================
+   4. PERMISSIONS
+   ========================================= */
+function can(perm){
+  const u = currentUser();
+  if (!u) return false;
+  const role = ROLES[u.role];
+  if (!role) return false;
+  return role.perms.includes('*') || role.perms.includes(perm);
+}
+function canDelete(){
+  const u = currentUser();
+  return u && (u.role === 'admin' || u.role === 'diretor');
+}
+function getEmpresaFilter(){
+  const u = currentUser();
+  if (!u) return null;
+  if (u.role === 'admin') return SESSION.empresaFilter;
+  return u.empresaId;
+}
+function inScope(empresaId){
+  const f = getEmpresaFilter();
+  if (f === 'todas' || f === null || f === undefined) return true;
+  return empresaId === f;
+}
+
+/* =========================================
+   5. DOM HELPERS
+   ========================================= */
+function el(tag, attrs = {}, children = []){
+  const n = document.createElement(tag);
+  for (const k in attrs){
+    if (k === 'class') n.className = attrs[k];
+    else if (k === 'html') n.innerHTML = attrs[k];
+    else if (k.startsWith('on') && typeof attrs[k] === 'function') n.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+    else if (k === 'style' && typeof attrs[k] === 'object') Object.assign(n.style, attrs[k]);
+    else if (attrs[k] !== undefined && attrs[k] !== null && attrs[k] !== false) n.setAttribute(k, attrs[k]);
+  }
+  if (children !== undefined && children !== null){
+    const arr = Array.isArray(children) ? children : [children];
+    for (const c of arr){
+      if (c === null || c === undefined || c === false) continue;
+      if (typeof c === 'string' || typeof c === 'number') n.appendChild(document.createTextNode(String(c)));
+      else n.appendChild(c);
+    }
+  }
+  return n;
+}
+function $ (sel, root){ return (root||document).querySelector(sel); }
+function $$(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
+
+/* =========================================
+   6. FORMATTERS + UTILS
+   ========================================= */
+const fmtBRL = v => (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const fmtNum = v => (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function fmtDate(iso){
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('pt-BR');
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function monthISO(){ return new Date().toISOString().slice(0,7); }
+function firstDayOfMonth(iso){ return (iso||monthISO()) + '-01' }
+function lastDayOfMonth(iso){
+  const m = iso || monthISO();
+  const [y,mo] = m.split('-').map(Number);
+  const d = new Date(y, mo, 0).getDate();
+  return `${m}-${String(d).padStart(2,'0')}`;
+}
+function parseMoneyInput(v){
+  if (v === null || v === undefined || v === '') return 0;
+  const s = String(v).replace(/\./g,'').replace(',','.').replace(/[^\d.-]/g,'');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function debounce(fn, wait){
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), wait); };
+}
+
+/* =========================================
+   7. UI HELPERS — Toast, Modal, Confirm
+   ========================================= */
+const ICONS = {
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+  check_circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+  logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>'
+};
+// nav icons
+const NAV_ICONS = {
+  dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  financeiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  pagar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+  receber: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  fornecedores: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  clientes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  produtos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+  relatorios: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  usuarios: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+};
+
+function toast(msg, type){
+  type = type || 'info';
+  const root = $('#toast-root');
+  if (!root) return;
+  const iconMap = { success: ICONS.check_circle, error: ICONS.alert, warning: ICONS.alert, info: ICONS.info };
+  const node = el('div', { class: 'toast ' + type, html: (iconMap[type] || ICONS.info) + '<span></span>' });
+  node.querySelector('span').textContent = msg;
+  root.appendChild(node);
+  setTimeout(() => {
+    node.style.transition = 'opacity 0.2s';
+    node.style.opacity = '0';
+    setTimeout(()=> node.remove(), 220);
+  }, 3000);
+}
+
+function openModal(opts){
+  // opts: { title, body (DOM), footer (DOM), size: 'lg'|'' }
+  closeModal();
+  const root = $('#modal-root');
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
+  const modal = el('div', { class: 'modal' + (opts.size === 'lg' ? ' modal-lg' : '') });
+  const header = el('div', { class: 'modal-header' }, [
+    el('div', { class: 'modal-title' }, opts.title || ''),
+    el('button', { class: 'modal-close', type: 'button', onclick: closeModal, html: ICONS.x })
+  ]);
+  const body = el('div', { class: 'modal-body' });
+  if (opts.body instanceof HTMLElement) body.appendChild(opts.body);
+  else if (typeof opts.body === 'string') body.innerHTML = opts.body;
+  modal.appendChild(header);
+  modal.appendChild(body);
+  if (opts.footer){
+    const footer = el('div', { class: 'modal-footer' });
+    if (opts.footer instanceof HTMLElement) footer.appendChild(opts.footer);
+    modal.appendChild(footer);
+  }
+  backdrop.appendChild(modal);
+  root.appendChild(backdrop);
+  // ESC key
+  document.addEventListener('keydown', modalEscHandler);
+  // focus first input
+  setTimeout(() => {
+    const firstInput = modal.querySelector('input:not([type=hidden]), select, textarea');
+    if (firstInput) firstInput.focus();
+  }, 50);
+}
+function modalEscHandler(e){ if (e.key === 'Escape') closeModal(); }
+function closeModal(){
+  const root = $('#modal-root');
+  if (!root) return;
+  root.innerHTML = '';
+  document.removeEventListener('keydown', modalEscHandler);
+}
+function confirmModal(msg, onYes, opts){
+  opts = opts || {};
+  const body = el('div', {}, [
+    el('p', { style: { fontSize: '14px', color: 'var(--text)', margin: '4px 0 0' } }, msg)
+  ]);
+  const footer = el('div', { class: 'flex gap-8' }, [
+    el('button', { class: 'btn btn-secondary', type: 'button', onclick: closeModal }, 'Cancelar'),
+    el('button', { class: 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary'), type: 'button', onclick: () => { closeModal(); onYes(); } }, opts.confirmLabel || 'Confirmar')
+  ]);
+  openModal({ title: opts.title || 'Confirmar', body, footer });
+}
+
+/* =========================================
+   8. ROUTER + RENDER
+   ========================================= */
+let currentPage = 'dashboard';
+
+const PAGES = [
+  { key: 'dashboard', label: 'Dashboard', section: 'PRINCIPAL', render: () => pageDashboard() },
+  { key: 'financeiro', label: 'Movimentação de Caixa', short: 'Financeiro', section: 'FINANCEIRO', render: () => pageFinanceiro() },
+  { key: 'pagar', label: 'Contas a Pagar', short: 'Contas a Pagar', section: 'FINANCEIRO', render: () => pagePagar() },
+  { key: 'receber', label: 'Contas a Receber', short: 'Contas a Receber', section: 'FINANCEIRO', render: () => pageReceber() },
+  { key: 'fornecedores', label: 'Fornecedores', section: 'CADASTROS', render: () => pageFornecedores() },
+  { key: 'clientes', label: 'Alunos / Clientes', short: 'Alunos', section: 'CADASTROS', render: () => pageClientes() },
+  { key: 'produtos', label: 'Cursos / Produtos', short: 'Cursos', section: 'CADASTROS', render: () => pageProdutos() },
+  { key: 'relatorios', label: 'Relatórios DRE', short: 'Relatórios', section: 'ANÁLISE', render: () => pageRelatorios() },
+  { key: 'usuarios', label: 'Usuários', section: 'ADMIN', render: () => pageUsuarios() }
+];
+
+function navigate(key){
+  if (!can(key)) { toast('Você não tem permissão para acessar esta página.', 'error'); return; }
+  currentPage = key;
+  render();
+}
+
+let LOADING = true;
+
+function render(){
+  const app = $('#app');
+  if (LOADING){
+    app.innerHTML = '';
+    app.appendChild(viewLoading('Conectando ao servidor...'));
+    return;
+  }
+  if (!SESSION){
+    app.innerHTML = '';
+    app.appendChild(viewLogin());
+    return;
+  }
+  const u = currentUser();
+  if (!u){ SESSION = null; render(); return; }
+  if (!can(currentPage)){
+    const allowed = PAGES.find(p => can(p.key));
+    if (allowed) currentPage = allowed.key;
+  }
+  app.innerHTML = '';
+  app.appendChild(viewApp());
+}
+
+function viewLoading(msg){
+  return el('div', { class: 'loading-screen' }, [
+    el('div', { class: 'loading-inner' }, [
+      el('div', { class: 'loading-spinner' }),
+      el('div', { class: 'loading-text' }, msg || 'Carregando...')
+    ])
+  ]);
+}
+
+/* =========================================
+   9. LOGIN VIEW
+   ========================================= */
+function viewLogin(){
+  const wrap = el('div', { class: 'login-wrap' });
+  const card = el('div', { class: 'login-card' });
+
+  const brand = el('div', { class: 'login-brand' }, [
+    el('div', { class: 'login-brand-mark' }, 'E'),
+    el('div', {}, [
+      el('div', { class: 'login-brand-title' }, APP_NAME),
+      el('div', { class: 'login-brand-sub' }, 'Gestão multi-unidade')
+    ])
+  ]);
+  const title = el('div', { class: 'login-title' }, 'Entrar na sua conta');
+  const sub = el('div', { class: 'login-sub' }, 'Acesse o painel com seu e-mail e senha.');
+
+  const errBox = el('div', { class: 'login-error hidden' });
+
+  const emailGroup = el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, 'E-mail'),
+    el('input', { class: 'form-control', type: 'email', id: 'li-email', autocomplete: 'username', placeholder: 'seu@email.com' })
+  ]);
+  const senhaGroup = el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, 'Senha'),
+    el('input', { class: 'form-control', type: 'password', id: 'li-senha', autocomplete: 'current-password', placeholder: '••••••••' })
+  ]);
+
+  const btn = el('button', { class: 'btn btn-primary', type: 'submit', id: 'li-btn', style: { width: '100%', justifyContent: 'center', padding: '10px 14px', marginTop: '8px' } }, 'Entrar');
+
+  const form = el('form', {
+    onSubmit: async (e) => {
+      e.preventDefault();
+      const email = $('#li-email').value;
+      const senha = $('#li-senha').value;
+      const b = $('#li-btn');
+      b.disabled = true;
+      b.textContent = 'Entrando...';
+      errBox.classList.add('hidden');
+      const r = await login(email, senha);
+      if (!r.ok){
+        errBox.textContent = r.msg;
+        errBox.classList.remove('hidden');
+        b.disabled = false;
+        b.textContent = 'Entrar';
+        return;
+      }
+      // onAuthStateChanged vai cuidar do redirect após autenticar
+      LOADING = true;
+      currentPage = 'dashboard';
+      render();
+    }
+  }, [errBox, emailGroup, senhaGroup, btn]);
+
+  const hint = el('div', { class: 'login-hint' }, [
+    el('div', {}, 'Primeiro acesso? Crie sua conta no Firebase Console'),
+    el('div', { style: { marginTop: '4px' } }, 'ou peça ao admin para cadastrar seu usuário.')
+  ]);
+
+  card.append(brand, title, sub, form, hint);
+  wrap.appendChild(card);
+  return wrap;
+}
+
+/* =========================================
+   10. APP SHELL (sidebar + header + main)
+   ========================================= */
+function viewApp(){
+  const u = currentUser();
+  const shell = el('div', { class: 'app' });
+
+  // Sidebar
+  const sidebar = el('aside', { class: 'sidebar' });
+  const brand = el('div', { class: 'sidebar-brand' }, [
+    el('div', { class: 'sidebar-brand-mark' }, 'E'),
+    el('div', {}, [
+      el('div', { class: 'sidebar-brand-title' }, 'ERP Franquia'),
+      el('div', { class: 'sidebar-brand-sub' }, 'v4.0')
+    ])
+  ]);
+  sidebar.appendChild(brand);
+
+  // Group nav items by section, filter by permission
+  const sections = {};
+  for (const p of PAGES){
+    if (!can(p.key)) continue;
+    if (!sections[p.section]) sections[p.section] = [];
+    sections[p.section].push(p);
+  }
+  for (const secName in sections){
+    sidebar.appendChild(el('div', { class: 'nav-section' }, secName));
+    for (const p of sections[secName]){
+      const navEl = el('button', {
+        class: 'nav-item' + (currentPage === p.key ? ' active' : ''),
+        type: 'button',
+        onclick: () => navigate(p.key)
+      }, [
+        el('span', { class: 'nav-item-icon', html: NAV_ICONS[p.key] || '' }),
+        el('span', {}, p.short || p.label)
+      ]);
+      sidebar.appendChild(navEl);
+    }
+  }
+
+  // User footer
+  const initial = (u.nome || u.email || '?').charAt(0).toUpperCase();
+  const userBox = el('div', { class: 'sidebar-user' }, [
+    el('div', { class: 'sidebar-user-avatar' }, initial),
+    el('div', { class: 'sidebar-user-info' }, [
+      el('div', { class: 'sidebar-user-name' }, u.nome || u.email),
+      el('div', { class: 'sidebar-user-role' }, ROLES[u.role]?.label || u.role)
+    ]),
+    el('button', { class: 'sidebar-logout', type: 'button', title: 'Sair', onclick: () => { confirmModal('Deseja realmente sair?', () => { logout(); toast('Até logo!','info'); }); }, html: ICONS.logout })
+  ]);
+  const foot = el('div', { class: 'sidebar-footer' }, [userBox]);
+  sidebar.appendChild(foot);
+
+  shell.appendChild(sidebar);
+
+  // Header
+  const pageDef = PAGES.find(p => p.key === currentPage);
+  const header = el('header', { class: 'header' });
+  const left = el('div', {}, [
+    el('div', { class: 'header-title' }, pageDef ? pageDef.label : ''),
+    el('div', { class: 'header-sub' }, headerSub())
+  ]);
+  const right = el('div', { class: 'header-right' });
+  // Empresa selector só para admin
+  if (u.role === 'admin'){
+    const sel = el('select', {
+      onchange: (e) => {
+        SESSION.empresaFilter = e.target.value === 'todas' ? 'todas' : e.target.value;
+        render();
+      }
+    });
+    sel.appendChild(el('option', { value: 'todas', selected: SESSION.empresaFilter === 'todas' }, 'Todas as unidades'));
+    for (const emp of DB.empresas){
+      const opt = el('option', { value: emp.id }, emp.nome);
+      if (SESSION.empresaFilter === emp.id) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    const box = el('div', { class: 'empresa-selector' }, [
+      el('span', { class: 'empresa-dot' }),
+      sel
+    ]);
+    right.appendChild(box);
+  } else {
+    const emp = DB.empresas.find(e => e.id === u.empresaId);
+    if (emp){
+      const box = el('div', { class: 'empresa-selector' }, [
+        el('span', { class: 'empresa-dot', style: { background: emp.cor } }),
+        el('span', { style: { fontWeight: 600, padding: '0 4px' } }, emp.nome)
+      ]);
+      right.appendChild(box);
+    }
+  }
+  header.append(left, right);
+
+  shell.appendChild(header);
+
+  // Main
+  const main = el('main', { class: 'main', id: 'main-content' });
+  if (pageDef) {
+    try {
+      const content = pageDef.render();
+      if (content instanceof HTMLElement) main.appendChild(content);
+    } catch(e){
+      console.error(e);
+      main.appendChild(el('div', { class: 'empty-state' }, 'Erro ao renderizar: ' + e.message));
+    }
+  }
+  shell.appendChild(main);
+
+  return shell;
+}
+function headerSub(){
+  const u = currentUser();
+  const d = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  return d.charAt(0).toUpperCase() + d.slice(1);
+}
+
+/* =========================================
+   11. SCOPED DATA HELPERS
+   ========================================= */
+function scopedList(key){
+  const arr = DB[key] || [];
+  const f = getEmpresaFilter();
+  if (f === 'todas' || f === null || f === undefined) return arr;
+  return arr.filter(x => x.empresaId === f);
+}
+function empresaDefault(){
+  const f = getEmpresaFilter();
+  if (f && f !== 'todas') return f;
+  return DB.empresas[0]?.id || null;
+}
+function empresaNome(id){
+  const e = DB.empresas.find(x => x.id === id);
+  return e ? e.nome : '—';
+}
+function empresaCor(id){
+  const e = DB.empresas.find(x => x.id === id);
+  return e ? e.cor : '#94a3b8';
+}
+
+/* =========================================
+   12. PAGE: DASHBOARD
+   ========================================= */
+function pageDashboard(){
+  const root = el('div');
+  const u = currentUser();
+
+  const lancamentos = scopedList('lancamentos');
+  const pagar = scopedList('pagar');
+  const receber = scopedList('receber');
+  const clientes = scopedList('clientes');
+  const produtos = scopedList('produtos');
+
+  const mesAtual = monthISO();
+  const lancMes = lancamentos.filter(l => (l.data||'').startsWith(mesAtual));
+  const entradasMes = lancMes.filter(l => l.tipo==='entrada').reduce((a,b)=>a+Number(b.valor||0),0);
+  const saidasMes = lancMes.filter(l => l.tipo==='saida').reduce((a,b)=>a+Number(b.valor||0),0);
+  const saldoMes = entradasMes - saidasMes;
+
+  const pagarPendentes = pagar.filter(p => p.status === 'pendente');
+  const receberPendentes = receber.filter(r => r.status === 'pendente');
+  const totalPagar = pagarPendentes.reduce((a,b)=>a+Number(b.valor||0),0);
+  const totalReceber = receberPendentes.reduce((a,b)=>a+Number(b.valor||0),0);
+
+  const hoje = todayISO();
+  const em7 = new Date(); em7.setDate(em7.getDate() + 7);
+  const em7ISO = em7.toISOString().slice(0,10);
+  const vencimentosProx = [
+    ...pagarPendentes.filter(p => p.vencimento >= hoje && p.vencimento <= em7ISO).map(p => ({...p, kind:'pagar'})),
+    ...receberPendentes.filter(r => r.vencimento >= hoje && r.vencimento <= em7ISO).map(r => ({...r, kind:'receber'}))
+  ].sort((a,b) => (a.vencimento||'').localeCompare(b.vencimento||'')).slice(0,6);
+
+  const atrasadosPagar = pagarPendentes.filter(p => (p.vencimento||'') < hoje);
+  const atrasadosReceber = receberPendentes.filter(r => (r.vencimento||'') < hoje);
+
+  const metrics = el('div', { class: 'grid-metrics' }, [
+    metricCard('Saldo do mês', fmtBRL(saldoMes), saldoMes >= 0 ? 'positive' : 'negative', `${fmtBRL(entradasMes)} entradas · ${fmtBRL(saidasMes)} saídas`),
+    metricCard('A receber', fmtBRL(totalReceber), null, `${receberPendentes.length} títulos${atrasadosReceber.length ? ' · '+atrasadosReceber.length+' atrasados' : ''}`),
+    metricCard('A pagar', fmtBRL(totalPagar), null, `${pagarPendentes.length} títulos${atrasadosPagar.length ? ' · '+atrasadosPagar.length+' atrasados' : ''}`),
+    metricCard('Cadastros', `${clientes.length} / ${produtos.length}`, null, `${clientes.length} alunos · ${produtos.length} cursos`)
+  ]);
+  root.appendChild(metrics);
+
+  const grid = el('div', { class: 'dash-grid' });
+
+  const recentes = lancamentos.slice().sort((a,b) => (b.data||'').localeCompare(a.data||'')).slice(0, 8);
+  const cardRecentes = el('div', { class: 'card' }, [
+    el('div', { class: 'card-header' }, [
+      el('div', { class: 'card-title' }, 'Últimas movimentações'),
+      can('financeiro') ? el('button', { class: 'btn btn-ghost btn-sm', onclick: () => navigate('financeiro') }, 'Ver tudo →') : null
+    ]),
+    recentes.length === 0
+      ? el('div', { class: 'card-empty' }, 'Nenhum lançamento ainda. Comece em Movimentação de Caixa.')
+      : el('div', { class: 'recent-list' }, recentes.map(lan => el('div', { class: 'recent-item' }, [
+          el('div', { class: 'recent-info' }, [
+            el('div', { class: 'recent-title' }, lan.descricao || lan.categoria || '(sem descrição)'),
+            el('div', { class: 'recent-meta' }, `${fmtDate(lan.data)} · ${lan.categoria || '—'}${u.role==='admin' ? ' · '+empresaNome(lan.empresaId) : ''}`)
+          ]),
+          el('div', { class: 'recent-value ' + (lan.tipo==='entrada' ? 'positive' : 'negative') },
+            (lan.tipo==='entrada' ? '+' : '−') + ' ' + fmtBRL(lan.valor))
+        ])))
+  ]);
+  grid.appendChild(cardRecentes);
+
+  const cardVenc = el('div', { class: 'card' }, [
+    el('div', { class: 'card-header' }, [
+      el('div', { class: 'card-title' }, 'Próximos vencimentos (7 dias)')
+    ]),
+    vencimentosProx.length === 0
+      ? el('div', { class: 'card-empty' }, 'Sem vencimentos nos próximos 7 dias.')
+      : el('div', { class: 'recent-list' }, vencimentosProx.map(v => el('div', { class: 'recent-item' }, [
+          el('div', { class: 'recent-info' }, [
+            el('div', { class: 'recent-title' }, v.descricao || '(sem descrição)'),
+            el('div', { class: 'recent-meta' }, `${fmtDate(v.vencimento)} · ${v.kind === 'pagar' ? 'Pagar' : 'Receber'}`)
+          ]),
+          el('div', { class: 'recent-value ' + (v.kind === 'receber' ? 'positive' : 'negative') }, fmtBRL(v.valor))
+        ])))
+  ]);
+  grid.appendChild(cardVenc);
+
+  root.appendChild(grid);
+  return root;
+}
+function metricCard(label, value, tone, hint){
+  return el('div', { class: 'metric-card' }, [
+    el('div', { class: 'metric-label' }, label),
+    el('div', { class: 'metric-value' + (tone ? ' ' + tone : '') }, value),
+    hint ? el('div', { class: 'metric-hint' }, hint) : null
+  ]);
+}
+
+/* =========================================
+   13. PAGE: FINANCEIRO (Movimentação de Caixa)
+   BUG CORRIGIDO: totEnt e totSai SÓ somam
+   lançamentos diretos. Contas a Receber NÃO
+   são adicionadas aqui.
+   ========================================= */
+let _filtroFinanceiro = {
+  de: firstDayOfMonth(),
+  ate: lastDayOfMonth(),
+  tipo: 'todos',
+  busca: ''
+};
+
+function pageFinanceiro(){
+  const root = el('div');
+  const u = currentUser();
+
+  const filtros = el('div', { class: 'page-actions' });
+  const filtrosLeft = el('div', { class: 'filters' });
+  const dateDe = el('input', { type: 'date', class: 'form-control', style: { width: '150px' }, value: _filtroFinanceiro.de, onchange: (e) => { _filtroFinanceiro.de = e.target.value; atualizar(); } });
+  const dateAte = el('input', { type: 'date', class: 'form-control', style: { width: '150px' }, value: _filtroFinanceiro.ate, onchange: (e) => { _filtroFinanceiro.ate = e.target.value; atualizar(); } });
+  const tipoSel = el('select', { class: 'form-control', style: { width: '140px' }, onchange: (e) => { _filtroFinanceiro.tipo = e.target.value; atualizar(); } }, [
+    el('option', { value: 'todos', selected: _filtroFinanceiro.tipo === 'todos' }, 'Todos tipos'),
+    el('option', { value: 'entrada', selected: _filtroFinanceiro.tipo === 'entrada' }, 'Entradas'),
+    el('option', { value: 'saida', selected: _filtroFinanceiro.tipo === 'saida' }, 'Saídas')
+  ]);
+  const busca = el('div', { class: 'search-input' }, [
+    el('span', { html: ICONS.search }),
+    el('input', { type: 'text', placeholder: 'Buscar lançamento...', value: _filtroFinanceiro.busca, oninput: debounce((e) => { _filtroFinanceiro.busca = e.target.value; atualizar(); }, 250) })
+  ]);
+  filtrosLeft.append(dateDe, dateAte, tipoSel, busca);
+  filtros.appendChild(filtrosLeft);
+
+  const btnNovo = el('button', { class: 'btn btn-primary', html: ICONS.plus + '<span>Novo lançamento</span>', onclick: () => lancamentoModal() });
+  filtros.appendChild(btnNovo);
+  root.appendChild(filtros);
+
+  const metricsHolder = el('div');
+  const tableHolder = el('div');
+  root.append(metricsHolder, tableHolder);
+
+  function atualizar(){
+    const lancamentos = scopedList('lancamentos')
+      .filter(l => {
+        const data = l.data || '';
+        if (_filtroFinanceiro.de && data < _filtroFinanceiro.de) return false;
+        if (_filtroFinanceiro.ate && data > _filtroFinanceiro.ate) return false;
+        if (_filtroFinanceiro.tipo !== 'todos' && l.tipo !== _filtroFinanceiro.tipo) return false;
+        if (_filtroFinanceiro.busca){
+          const q = _filtroFinanceiro.busca.toLowerCase();
+          const hay = `${l.descricao||''} ${l.categoria||''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a,b) => (b.data||'').localeCompare(a.data||''));
+
+    // >>> CÁLCULO CORRIGIDO — SÓ LANÇAMENTOS DIRETOS <<<
+    const totEnt = lancamentos.filter(l => l.tipo === 'entrada').reduce((a,b)=>a+Number(b.valor||0),0);
+    const totSai = lancamentos.filter(l => l.tipo === 'saida').reduce((a,b)=>a+Number(b.valor||0),0);
+    const saldo = totEnt - totSai;
+
+    metricsHolder.innerHTML = '';
+    metricsHolder.appendChild(el('div', { class: 'grid-metrics' }, [
+      metricCard('Entradas no período', fmtBRL(totEnt), 'positive', `${lancamentos.filter(l => l.tipo === 'entrada').length} lançamentos`),
+      metricCard('Saídas no período', fmtBRL(totSai), 'negative', `${lancamentos.filter(l => l.tipo === 'saida').length} lançamentos`),
+      metricCard('Saldo', fmtBRL(saldo), saldo >= 0 ? 'positive' : 'negative', saldo >= 0 ? 'Positivo' : 'Negativo')
+    ]));
+
+    tableHolder.innerHTML = '';
+    const card = el('div', { class: 'card' });
+    if (lancamentos.length === 0){
+      card.appendChild(el('div', { class: 'empty-state' }, [
+        el('div', { class: 'empty-state-icon', html: NAV_ICONS.financeiro }),
+        el('div', { class: 'empty-state-title' }, 'Sem lançamentos no período'),
+        el('div', { class: 'empty-state-sub' }, 'Ajuste os filtros ou adicione um novo lançamento.')
+      ]));
+    } else {
+      const tbl = el('table', { class: 'data-table' });
+      const thead = el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Data'),
+        el('th', {}, 'Descrição'),
+        el('th', {}, 'Categoria'),
+        u.role === 'admin' ? el('th', {}, 'Unidade') : null,
+        el('th', {}, 'Tipo'),
+        el('th', { class: 'num' }, 'Valor'),
+        el('th', { class: 'actions' }, '')
+      ]));
+      const tbody = el('tbody');
+      for (const l of lancamentos){
+        const tr = el('tr', {}, [
+          el('td', {}, fmtDate(l.data)),
+          el('td', {}, l.descricao || '—'),
+          el('td', {}, l.categoria || '—'),
+          u.role === 'admin' ? el('td', {}, empresaNome(l.empresaId)) : null,
+          el('td', {}, el('span', { class: 'badge ' + (l.tipo === 'entrada' ? 'badge-success' : 'badge-danger') }, [
+            el('span', { class: 'badge-dot' }),
+            l.tipo === 'entrada' ? 'Entrada' : 'Saída'
+          ])),
+          el('td', { class: 'num', style: { color: l.tipo === 'entrada' ? 'var(--success)' : 'var(--danger)' } },
+            (l.tipo === 'entrada' ? '+' : '−') + ' ' + fmtBRL(l.valor)),
+          el('td', { class: 'actions' }, [
+            el('button', { class: 'btn-icon', title: 'Editar', html: ICONS.edit, onclick: () => lancamentoModal(l) }),
+            canDelete() ? el('button', { class: 'btn-icon danger', title: 'Excluir', html: ICONS.trash, onclick: () => confirmDelete('lancamentos', l.id, 'Excluir este lançamento?', atualizar) }) : null
+          ])
+        ]);
+        tbody.appendChild(tr);
+      }
+      tbl.append(thead, tbody);
+      card.appendChild(el('div', { class: 'table-wrap' }, tbl));
+    }
+    tableHolder.appendChild(card);
+  }
+  atualizar();
+  return root;
+}
+
+function lancamentoModal(existing){
+  const u = currentUser();
+  const isEdit = !!existing;
+  const item = existing ? {...existing} : {
+    id: null,
+    tipo: 'entrada',
+    valor: 0,
+    descricao: '',
+    categoria: '',
+    data: todayISO(),
+    empresaId: empresaDefault()
+  };
+
+  const body = el('div');
+
+  const tipoHolder = el('div', { class: 'form-group' });
+  function renderTipo(){
+    tipoHolder.innerHTML = '';
+    tipoHolder.appendChild(el('label', { class: 'form-label' }, 'Tipo'));
+    const row = el('div', { class: 'flex gap-8' });
+    for (const [val, label, cor] of [['entrada','Entrada','var(--success)'], ['saida','Saída','var(--danger)']]){
+      const active = item.tipo === val;
+      row.appendChild(el('button', {
+        type: 'button',
+        class: 'btn ' + (active ? 'btn-primary' : 'btn-secondary'),
+        style: { flex: '1', justifyContent: 'center', padding: '10px', background: active ? cor : '', borderColor: active ? cor : '', color: active ? 'white' : '' },
+        onclick: () => { item.tipo = val; renderTipo(); renderCat(); }
+      }, label));
+    }
+    tipoHolder.appendChild(row);
+  }
+  renderTipo();
+
+  const row1 = el('div', { class: 'form-row' }, [
+    el('div', { class: 'form-group mb-0' }, [
+      el('label', { class: 'form-label' }, [el('span', {}, 'Valor '), el('span', { class: 'req' }, '*')]),
+      el('input', { class: 'form-control', type: 'text', id: 'fl-valor', placeholder: '0,00', value: item.valor ? fmtNum(item.valor) : '' })
+    ]),
+    el('div', { class: 'form-group mb-0' }, [
+      el('label', { class: 'form-label' }, [el('span', {}, 'Data '), el('span', { class: 'req' }, '*')]),
+      el('input', { class: 'form-control', type: 'date', id: 'fl-data', value: item.data })
+    ])
+  ]);
+
+  const catHolder = el('div', { class: 'form-group' });
+  function renderCat(){
+    const opts = item.tipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA;
+    catHolder.innerHTML = '';
+    catHolder.appendChild(el('label', { class: 'form-label' }, 'Categoria'));
+    const sel = el('select', { class: 'form-control', id: 'fl-cat' });
+    sel.appendChild(el('option', { value: '' }, '(nenhuma)'));
+    for (const c of opts){
+      const o = el('option', { value: c }, c);
+      if (c === item.categoria) o.selected = true;
+      sel.appendChild(o);
+    }
+    catHolder.appendChild(sel);
+  }
+  renderCat();
+
+  const descGroup = el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, 'Descrição'),
+    el('input', { class: 'form-control', type: 'text', id: 'fl-desc', placeholder: 'Ex: Mensalidade aluno João', value: item.descricao || '' })
+  ]);
+
+  let empresaGroup = null;
+  if (u.role === 'admin'){
+    const sel = el('select', { class: 'form-control', id: 'fl-emp' });
+    for (const emp of DB.empresas){
+      const o = el('option', { value: emp.id }, emp.nome);
+      if (emp.id === item.empresaId) o.selected = true;
+      sel.appendChild(o);
+    }
+    empresaGroup = el('div', { class: 'form-group' }, [ el('label', { class: 'form-label' }, 'Unidade'), sel ]);
+  }
+
+  body.append(tipoHolder, row1, catHolder, descGroup);
+  if (empresaGroup) body.appendChild(empresaGroup);
+
+  function salvar(){
+    const valor = parseMoneyInput($('#fl-valor').value);
+    const data = $('#fl-data').value;
+    const categoria = $('#fl-cat').value;
+    const descricao = $('#fl-desc').value.trim();
+    const empresaId = $('#fl-emp') ? $('#fl-emp').value : (item.empresaId || empresaDefault());
+
+    if (valor <= 0){ toast('Informe um valor maior que zero.', 'error'); return; }
+    if (!data){ toast('Informe a data.', 'error'); return; }
+
+    (async () => {
+      try {
+        if (isEdit){
+          await fbUpdate('lancamentos', item.id, { tipo: item.tipo, valor, data, categoria, descricao, empresaId });
+        } else {
+          await fbAdd('lancamentos', { tipo: item.tipo, valor, data, categoria, descricao, empresaId });
+        }
+        closeModal();
+        toast(isEdit ? 'Lançamento atualizado.' : 'Lançamento adicionado.', 'success');
+        render();
+      } catch(e){
+        console.error(e);
+        toast('Erro ao salvar: ' + (e.message || e), 'error');
+      }
+    })();
+  }
+
+  const footer = el('div', { class: 'flex gap-8' }, [
+    el('button', { class: 'btn btn-secondary', type: 'button', onclick: closeModal }, 'Cancelar'),
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: salvar }, isEdit ? 'Salvar alterações' : 'Adicionar lançamento')
+  ]);
+
+  openModal({ title: isEdit ? 'Editar lançamento' : 'Novo lançamento', body, footer });
+}
+
+function confirmDelete(collection, id, msg, afterCb){
+  confirmModal(msg, async () => {
+    try {
+      await fbDelete(collection, id);
+      toast('Excluído com sucesso.', 'success');
+      if (afterCb) afterCb(); else render();
+    } catch(e){
+      console.error(e);
+      toast('Erro ao excluir: ' + (e.message || e), 'error');
+    }
+  }, { danger: true, confirmLabel: 'Excluir', title: 'Confirmar exclusão' });
+}
+
+/* =========================================
+   14. PAGE: CONTAS A PAGAR / RECEBER
+   ========================================= */
+let _filtroPR = { pagar: { status: 'todos', busca: '' }, receber: { status: 'todos', busca: '' } };
+
+function pagePagarReceber(kind){
+  const isPagar = kind === 'pagar';
+  const collection = isPagar ? 'pagar' : 'receber';
+  const label = isPagar ? 'conta a pagar' : 'conta a receber';
+  const relKey = isPagar ? 'fornecedorId' : 'clienteId';
+  const relCol = isPagar ? 'fornecedores' : 'clientes';
+  const relLabel = isPagar ? 'Fornecedor' : 'Aluno/Cliente';
+  const statusPago = isPagar ? 'pago' : 'recebido';
+
+  const root = el('div');
+  const u = currentUser();
+
+  const filtros = el('div', { class: 'page-actions' });
+  const filtrosLeft = el('div', { class: 'filters' });
+  const statusSel = el('select', { class: 'form-control', style: { width: '160px' }, onchange: (e) => { _filtroPR[kind].status = e.target.value; atualizar(); } }, [
+    el('option', { value: 'todos', selected: _filtroPR[kind].status === 'todos' }, 'Todos status'),
+    el('option', { value: 'pendente', selected: _filtroPR[kind].status === 'pendente' }, 'Pendentes'),
+    el('option', { value: statusPago, selected: _filtroPR[kind].status === statusPago }, isPagar ? 'Pagos' : 'Recebidos'),
+    el('option', { value: 'atrasados', selected: _filtroPR[kind].status === 'atrasados' }, 'Atrasados')
+  ]);
+  const busca = el('div', { class: 'search-input' }, [
+    el('span', { html: ICONS.search }),
+    el('input', { type: 'text', placeholder: 'Buscar...', value: _filtroPR[kind].busca, oninput: debounce((e) => { _filtroPR[kind].busca = e.target.value; atualizar(); }, 250) })
+  ]);
+  filtrosLeft.append(statusSel, busca);
+  filtros.appendChild(filtrosLeft);
+  const btnNovo = el('button', { class: 'btn btn-primary', html: ICONS.plus + '<span>Nova ' + label + '</span>', onclick: () => contaModal(kind) });
+  filtros.appendChild(btnNovo);
+  root.appendChild(filtros);
+
+  const metricsHolder = el('div');
+  const tableHolder = el('div');
+  root.append(metricsHolder, tableHolder);
+
+  function atualizar(){
+    const hoje = todayISO();
+    const all = scopedList(collection);
+    const items = all.filter(x => {
+      const st = _filtroPR[kind].status;
+      if (st === 'atrasados'){ if (x.status !== 'pendente' || (x.vencimento||'') >= hoje) return false; }
+      else if (st !== 'todos' && x.status !== st) return false;
+      if (_filtroPR[kind].busca){
+        const q = _filtroPR[kind].busca.toLowerCase();
+        const rel = (DB[relCol].find(r => r.id === x[relKey]) || {}).nome || '';
+        const hay = `${x.descricao||''} ${rel}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a,b) => (a.vencimento||'').localeCompare(b.vencimento||''));
+
+    const totalPendente = all.filter(x => x.status === 'pendente').reduce((a,b)=>a+Number(b.valor||0),0);
+    const totalPago = all.filter(x => x.status === statusPago).reduce((a,b)=>a+Number(b.valor||0),0);
+    const atrasados = all.filter(x => x.status === 'pendente' && (x.vencimento||'') < hoje);
+    const totalAtrasado = atrasados.reduce((a,b)=>a+Number(b.valor||0),0);
+
+    metricsHolder.innerHTML = '';
+    metricsHolder.appendChild(el('div', { class: 'grid-metrics' }, [
+      metricCard('Pendente', fmtBRL(totalPendente), null, `${all.filter(x => x.status === 'pendente').length} títulos`),
+      metricCard('Atrasado', fmtBRL(totalAtrasado), totalAtrasado > 0 ? 'negative' : null, `${atrasados.length} títulos atrasados`),
+      metricCard(isPagar ? 'Pago' : 'Recebido', fmtBRL(totalPago), 'positive', `${all.filter(x => x.status === statusPago).length} títulos`)
+    ]));
+
+    tableHolder.innerHTML = '';
+    const card = el('div', { class: 'card' });
+    if (items.length === 0){
+      card.appendChild(el('div', { class: 'empty-state' }, [
+        el('div', { class: 'empty-state-icon', html: NAV_ICONS[kind] }),
+        el('div', { class: 'empty-state-title' }, 'Nenhum registro encontrado'),
+        el('div', { class: 'empty-state-sub' }, 'Ajuste os filtros ou adicione uma ' + label + '.')
+      ]));
+    } else {
+      const tbl = el('table', { class: 'data-table' });
+      tbl.appendChild(el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Vencimento'),
+        el('th', {}, 'Descrição'),
+        el('th', {}, relLabel),
+        u.role === 'admin' ? el('th', {}, 'Unidade') : null,
+        el('th', {}, 'Status'),
+        el('th', { class: 'num' }, 'Valor'),
+        el('th', { class: 'actions' }, '')
+      ])));
+      const tbody = el('tbody');
+      for (const it of items){
+        const vencido = it.status === 'pendente' && (it.vencimento||'') < hoje;
+        const relName = (DB[relCol].find(r => r.id === it[relKey]) || {}).nome || '—';
+        let badge;
+        if (it.status === statusPago) badge = el('span', { class: 'badge badge-success' }, [ el('span', { class: 'badge-dot' }), isPagar ? 'Pago' : 'Recebido' ]);
+        else if (vencido) badge = el('span', { class: 'badge badge-danger' }, [ el('span', { class: 'badge-dot' }), 'Atrasado' ]);
+        else badge = el('span', { class: 'badge badge-warning' }, [ el('span', { class: 'badge-dot' }), 'Pendente' ]);
+
+        const acoes = el('td', { class: 'actions' }, [
+          it.status === 'pendente' ? el('button', { class: 'btn-icon', title: isPagar ? 'Marcar como pago' : 'Marcar como recebido', html: ICONS.check, onclick: () => marcarComoPago(kind, it.id, atualizar) }) : null,
+          el('button', { class: 'btn-icon', title: 'Editar', html: ICONS.edit, onclick: () => contaModal(kind, it) }),
+          canDelete() ? el('button', { class: 'btn-icon danger', title: 'Excluir', html: ICONS.trash, onclick: () => confirmDelete(collection, it.id, 'Excluir este registro?', atualizar) }) : null
+        ]);
+        tbody.appendChild(el('tr', {}, [
+          el('td', {}, fmtDate(it.vencimento)),
+          el('td', {}, it.descricao || '—'),
+          el('td', {}, relName),
+          u.role === 'admin' ? el('td', {}, empresaNome(it.empresaId)) : null,
+          el('td', {}, badge),
+          el('td', { class: 'num' }, fmtBRL(it.valor)),
+          acoes
+        ]));
+      }
+      tbl.appendChild(tbody);
+      card.appendChild(el('div', { class: 'table-wrap' }, tbl));
+    }
+    tableHolder.appendChild(card);
+  }
+  atualizar();
+  return root;
+}
+function pagePagar(){ return pagePagarReceber('pagar'); }
+function pageReceber(){ return pagePagarReceber('receber'); }
+
+async function marcarComoPago(kind, id, cb){
+  const isPagar = kind === 'pagar';
+  const col = isPagar ? 'pagar' : 'receber';
+  const statusPago = isPagar ? 'pago' : 'recebido';
+  const it = DB[col].find(x => x.id === id);
+  if (!it) return;
+  try {
+    await fbUpdate(col, id, { status: statusPago, dataQuitacao: todayISO() });
+    await fbAdd('lancamentos', {
+      tipo: isPagar ? 'saida' : 'entrada',
+      valor: Number(it.valor || 0),
+      data: todayISO(),
+      categoria: isPagar ? 'Outros' : 'Mensalidade',
+      descricao: (isPagar ? 'Pagamento: ' : 'Recebimento: ') + (it.descricao || ''),
+      empresaId: it.empresaId,
+      origemId: it.id,
+      origem: col
+    });
+    toast(isPagar ? 'Conta paga. Lançamento registrado.' : 'Recebimento confirmado. Lançamento registrado.', 'success');
+    if (cb) cb(); else render();
+  } catch(e){
+    console.error(e);
+    toast('Erro ao registrar: ' + (e.message || e), 'error');
+  }
+}
+
+function contaModal(kind, existing){
+  const isPagar = kind === 'pagar';
+  const relKey = isPagar ? 'fornecedorId' : 'clienteId';
+  const relCol = isPagar ? 'fornecedores' : 'clientes';
+  const relLabel = isPagar ? 'Fornecedor' : 'Aluno/Cliente';
+  const col = isPagar ? 'pagar' : 'receber';
+  const u = currentUser();
+
+  const isEdit = !!existing;
+  const item = existing ? {...existing} : {
+    id: null, [relKey]: null, descricao: '', valor: 0, vencimento: todayISO(), status: 'pendente', empresaId: empresaDefault()
+  };
+
+  const relItems = scopedList(relCol);
+  const body = el('div');
+
+  const relSel = el('select', { class: 'form-control', id: 'cn-rel' });
+  relSel.appendChild(el('option', { value: '' }, '(nenhum)'));
+  for (const r of relItems){
+    const o = el('option', { value: r.id }, r.nome);
+    if (r.id === item[relKey]) o.selected = true;
+    relSel.appendChild(o);
+  }
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, relLabel),
+    relSel,
+    relItems.length === 0 ? el('div', { class: 'form-hint' }, 'Nenhum cadastrado. Você pode criar na aba correspondente.') : null
+  ]));
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, [el('span', {}, 'Descrição '), el('span', { class: 'req' }, '*')]),
+    el('input', { class: 'form-control', type: 'text', id: 'cn-desc', placeholder: 'Ex: Aluguel março', value: item.descricao || '' })
+  ]));
+  body.appendChild(el('div', { class: 'form-row' }, [
+    el('div', { class: 'form-group mb-0' }, [
+      el('label', { class: 'form-label' }, [el('span', {}, 'Valor '), el('span', { class: 'req' }, '*')]),
+      el('input', { class: 'form-control', type: 'text', id: 'cn-valor', placeholder: '0,00', value: item.valor ? fmtNum(item.valor) : '' })
+    ]),
+    el('div', { class: 'form-group mb-0' }, [
+      el('label', { class: 'form-label' }, [el('span', {}, 'Vencimento '), el('span', { class: 'req' }, '*')]),
+      el('input', { class: 'form-control', type: 'date', id: 'cn-venc', value: item.vencimento })
+    ])
+  ]));
+  if (u.role === 'admin'){
+    const sel = el('select', { class: 'form-control', id: 'cn-emp' });
+    for (const emp of DB.empresas){
+      const o = el('option', { value: emp.id }, emp.nome);
+      if (emp.id === item.empresaId) o.selected = true;
+      sel.appendChild(o);
+    }
+    body.appendChild(el('div', { class: 'form-group' }, [ el('label', { class: 'form-label' }, 'Unidade'), sel ]));
+  }
+
+  function salvar(){
+    const rel = $('#cn-rel').value;
+    const descricao = $('#cn-desc').value.trim();
+    const valor = parseMoneyInput($('#cn-valor').value);
+    const vencimento = $('#cn-venc').value;
+    const empresaId = $('#cn-emp') ? $('#cn-emp').value : (item.empresaId || empresaDefault());
+
+    if (!descricao){ toast('Informe uma descrição.', 'error'); return; }
+    if (valor <= 0){ toast('Informe um valor maior que zero.', 'error'); return; }
+    if (!vencimento){ toast('Informe o vencimento.', 'error'); return; }
+
+    const data = { [relKey]: rel || null, descricao, valor, vencimento, empresaId };
+    (async () => {
+      try {
+        if (isEdit){
+          await fbUpdate(col, item.id, data);
+        } else {
+          await fbAdd(col, { status: 'pendente', ...data });
+        }
+        closeModal();
+        toast(isEdit ? 'Registro atualizado.' : 'Registro adicionado.', 'success');
+        render();
+      } catch(e){
+        console.error(e);
+        toast('Erro ao salvar: ' + (e.message || e), 'error');
+      }
+    })();
+  }
+
+  const footer = el('div', { class: 'flex gap-8' }, [
+    el('button', { class: 'btn btn-secondary', type: 'button', onclick: closeModal }, 'Cancelar'),
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: salvar }, isEdit ? 'Salvar' : 'Adicionar')
+  ]);
+
+  openModal({ title: (isEdit ? 'Editar ' : 'Nova ') + (isPagar ? 'conta a pagar' : 'conta a receber'), body, footer });
+}
+
+/* =========================================
+   15. PAGE: FORNECEDORES / CLIENTES / PRODUTOS
+   ========================================= */
+let _filtroCadastro = { fornecedores: '', clientes: '', produtos: '' };
+
+function pageFornecedores(){ return pageCadastro('fornecedores'); }
+function pageClientes(){ return pageCadastro('clientes'); }
+function pageProdutos(){ return pageCadastro('produtos'); }
+
+function pageCadastro(col){
+  const root = el('div');
+  const u = currentUser();
+
+  const defs = {
+    fornecedores: {
+      label: 'fornecedor', search: 'Buscar fornecedor...', icon: NAV_ICONS.fornecedores,
+      cols: ['Nome','CNPJ','Telefone','E-mail'],
+      emptyTitle: 'Nenhum fornecedor cadastrado', emptySub: 'Adicione seu primeiro fornecedor.',
+      row: f => [ f.nome || '—', f.cnpj || '—', f.telefone || '—', f.email || '—' ]
+    },
+    clientes: {
+      label: 'aluno/cliente', search: 'Buscar aluno...', icon: NAV_ICONS.clientes,
+      cols: ['Nome','CPF','Telefone','E-mail'],
+      emptyTitle: 'Nenhum aluno cadastrado', emptySub: 'Adicione seu primeiro aluno.',
+      row: c => [ c.nome || '—', c.cpf || '—', c.telefone || '—', c.email || '—' ]
+    },
+    produtos: {
+      label: 'curso/produto', search: 'Buscar...', icon: NAV_ICONS.produtos,
+      cols: ['Nome','Categoria','Descrição','Preço'],
+      emptyTitle: 'Nenhum curso cadastrado', emptySub: 'Adicione seu primeiro curso ou produto.',
+      row: p => [ p.nome || '—', p.categoria || '—', (p.descricao||'').slice(0,60) || '—', { num: true, value: fmtBRL(p.preco) } ]
+    }
+  };
+  const def = defs[col];
+
+  const filtros = el('div', { class: 'page-actions' });
+  const filtrosLeft = el('div', { class: 'filters' });
+  const busca = el('div', { class: 'search-input' }, [
+    el('span', { html: ICONS.search }),
+    el('input', { type: 'text', placeholder: def.search, value: _filtroCadastro[col], oninput: debounce((e) => { _filtroCadastro[col] = e.target.value; atualizar(); }, 250) })
+  ]);
+  filtrosLeft.appendChild(busca);
+  filtros.appendChild(filtrosLeft);
+  const btnNovo = el('button', { class: 'btn btn-primary', html: ICONS.plus + '<span>Novo ' + def.label + '</span>', onclick: () => cadastroModal(col) });
+  filtros.appendChild(btnNovo);
+  root.appendChild(filtros);
+
+  const tableHolder = el('div');
+  root.appendChild(tableHolder);
+
+  function atualizar(){
+    const items = scopedList(col).filter(x => {
+      if (!_filtroCadastro[col]) return true;
+      const q = _filtroCadastro[col].toLowerCase();
+      return Object.values(x).some(v => String(v||'').toLowerCase().includes(q));
+    }).sort((a,b) => (a.nome||'').localeCompare(b.nome||''));
+
+    tableHolder.innerHTML = '';
+    const card = el('div', { class: 'card' });
+    if (items.length === 0){
+      card.appendChild(el('div', { class: 'empty-state' }, [
+        el('div', { class: 'empty-state-icon', html: def.icon }),
+        el('div', { class: 'empty-state-title' }, def.emptyTitle),
+        el('div', { class: 'empty-state-sub' }, def.emptySub)
+      ]));
+    } else {
+      const tbl = el('table', { class: 'data-table' });
+      tbl.appendChild(el('thead', {}, el('tr', {}, [
+        ...def.cols.map(c => el('th', { class: c === 'Preço' ? 'num' : '' }, c)),
+        u.role === 'admin' ? el('th', {}, 'Unidade') : null,
+        el('th', { class: 'actions' }, '')
+      ])));
+      const tbody = el('tbody');
+      for (const it of items){
+        const cells = def.row(it).map(v => {
+          if (v && typeof v === 'object' && v.num) return el('td', { class: 'num' }, v.value);
+          return el('td', {}, v);
+        });
+        tbody.appendChild(el('tr', {}, [
+          ...cells,
+          u.role === 'admin' ? el('td', {}, empresaNome(it.empresaId)) : null,
+          el('td', { class: 'actions' }, [
+            el('button', { class: 'btn-icon', title: 'Editar', html: ICONS.edit, onclick: () => cadastroModal(col, it) }),
+            canDelete() ? el('button', { class: 'btn-icon danger', title: 'Excluir', html: ICONS.trash, onclick: () => confirmDelete(col, it.id, 'Excluir ' + def.label + ' "' + (it.nome||'') + '"?', atualizar) }) : null
+          ])
+        ]));
+      }
+      tbl.appendChild(tbody);
+      card.appendChild(el('div', { class: 'table-wrap' }, tbl));
+    }
+    tableHolder.appendChild(card);
+  }
+  atualizar();
+  return root;
+}
+
+function cadastroModal(col, existing){
+  const u = currentUser();
+  const isEdit = !!existing;
+  const idType = col === 'fornecedores' ? 'fornecedor' : col === 'clientes' ? 'cliente' : 'produto';
+  const item = existing ? {...existing} : { id: null, nome: '', empresaId: empresaDefault() };
+
+  const body = el('div');
+
+  if (col === 'fornecedores'){
+    body.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { class: 'form-label' }, 'CNPJ'),
+      el('div', { class: 'flex gap-8' }, [
+        el('input', { class: 'form-control', id: 'cd-cnpj', type: 'text', placeholder: '00.000.000/0000-00', value: item.cnpj || '', style: { flex: '1' } }),
+        el('button', { class: 'btn btn-secondary', type: 'button', onclick: buscarCNPJ }, 'Buscar')
+      ]),
+      el('div', { class: 'form-hint' }, 'Clique em Buscar para preencher automaticamente (BrasilAPI).')
+    ]));
+  }
+
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, [el('span', {}, 'Nome '), el('span', { class: 'req' }, '*')]),
+    el('input', { class: 'form-control', id: 'cd-nome', type: 'text', placeholder: 'Nome', value: item.nome || '' })
+  ]));
+
+  if (col === 'clientes'){
+    body.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { class: 'form-label' }, 'CPF'),
+      el('input', { class: 'form-control', id: 'cd-cpf', type: 'text', placeholder: '000.000.000-00', value: item.cpf || '' })
+    ]));
+  }
+
+  if (col === 'produtos'){
+    body.appendChild(el('div', { class: 'form-row' }, [
+      el('div', { class: 'form-group mb-0' }, [
+        el('label', { class: 'form-label' }, 'Categoria'),
+        el('input', { class: 'form-control', id: 'cd-cat', type: 'text', placeholder: 'Ex: Idiomas', value: item.categoria || '' })
+      ]),
+      el('div', { class: 'form-group mb-0' }, [
+        el('label', { class: 'form-label' }, 'Preço'),
+        el('input', { class: 'form-control', id: 'cd-preco', type: 'text', placeholder: '0,00', value: item.preco ? fmtNum(item.preco) : '' })
+      ])
+    ]));
+    body.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { class: 'form-label' }, 'Descrição'),
+      el('textarea', { class: 'form-control', id: 'cd-desc', placeholder: 'Descrição...' }, item.descricao || '')
+    ]));
+  } else {
+    body.appendChild(el('div', { class: 'form-row' }, [
+      el('div', { class: 'form-group mb-0' }, [
+        el('label', { class: 'form-label' }, 'Telefone'),
+        el('input', { class: 'form-control', id: 'cd-tel', type: 'tel', placeholder: '(00) 00000-0000', value: item.telefone || '' })
+      ]),
+      el('div', { class: 'form-group mb-0' }, [
+        el('label', { class: 'form-label' }, 'E-mail'),
+        el('input', { class: 'form-control', id: 'cd-email', type: 'email', placeholder: 'email@exemplo.com', value: item.email || '' })
+      ])
+    ]));
+    body.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { class: 'form-label' }, 'Endereço'),
+      el('input', { class: 'form-control', id: 'cd-end', type: 'text', placeholder: 'Endereço', value: item.endereco || '' })
+    ]));
+  }
+
+  if (u.role === 'admin'){
+    const sel = el('select', { class: 'form-control', id: 'cd-emp' });
+    for (const emp of DB.empresas){
+      const o = el('option', { value: emp.id }, emp.nome);
+      if (emp.id === item.empresaId) o.selected = true;
+      sel.appendChild(o);
+    }
+    body.appendChild(el('div', { class: 'form-group' }, [ el('label', { class: 'form-label' }, 'Unidade'), sel ]));
+  }
+
+  async function buscarCNPJ(){
+    const cnpjInput = $('#cd-cnpj');
+    const cnpj = (cnpjInput.value || '').replace(/\D/g, '');
+    if (cnpj.length !== 14){ toast('CNPJ deve ter 14 dígitos.', 'error'); return; }
+    toast('Consultando CNPJ...', 'info');
+    try {
+      const resp = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cnpj);
+      if (!resp.ok) throw new Error('CNPJ não encontrado');
+      const data = await resp.json();
+      if ($('#cd-nome')) $('#cd-nome').value = data.razao_social || data.nome_fantasia || '';
+      if ($('#cd-tel')) $('#cd-tel').value = data.ddd_telefone_1 || '';
+      if ($('#cd-email')) $('#cd-email').value = data.email || '';
+      if ($('#cd-end')){
+        const end = [data.logradouro, data.numero, data.bairro, data.municipio, data.uf].filter(Boolean).join(', ');
+        $('#cd-end').value = end;
+      }
+      toast('Dados preenchidos.', 'success');
+    } catch(err){ toast('CNPJ não encontrado.', 'error'); }
+  }
+
+  function salvar(){
+    const nome = $('#cd-nome').value.trim();
+    if (!nome){ toast('Informe o nome.', 'error'); return; }
+    const data = { nome, empresaId: $('#cd-emp') ? $('#cd-emp').value : (item.empresaId || empresaDefault()) };
+
+    if (col === 'fornecedores'){
+      data.cnpj = $('#cd-cnpj').value.trim();
+      data.telefone = $('#cd-tel').value.trim();
+      data.email = $('#cd-email').value.trim();
+      data.endereco = $('#cd-end').value.trim();
+    } else if (col === 'clientes'){
+      data.cpf = $('#cd-cpf').value.trim();
+      data.telefone = $('#cd-tel').value.trim();
+      data.email = $('#cd-email').value.trim();
+      data.endereco = $('#cd-end').value.trim();
+    } else if (col === 'produtos'){
+      data.categoria = $('#cd-cat').value.trim();
+      data.preco = parseMoneyInput($('#cd-preco').value);
+      data.descricao = $('#cd-desc').value.trim();
+    }
+
+    (async () => {
+      try {
+        if (isEdit){
+          await fbUpdate(col, item.id, data);
+        } else {
+          await fbAdd(col, data);
+        }
+        closeModal();
+        toast(isEdit ? 'Atualizado.' : 'Adicionado.', 'success');
+        render();
+      } catch(e){
+        console.error(e);
+        toast('Erro ao salvar: ' + (e.message || e), 'error');
+      }
+    })();
+  }
+
+  const footer = el('div', { class: 'flex gap-8' }, [
+    el('button', { class: 'btn btn-secondary', type: 'button', onclick: closeModal }, 'Cancelar'),
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: salvar }, isEdit ? 'Salvar' : 'Adicionar')
+  ]);
+
+  const label = col === 'fornecedores' ? 'fornecedor' : col === 'clientes' ? 'aluno/cliente' : 'curso/produto';
+  openModal({ title: (isEdit ? 'Editar ' : 'Novo ') + label, body, footer });
+}
+
+/* =========================================
+   16. PAGE: RELATÓRIOS (DRE mensal)
+   ========================================= */
+let _filtroRel = { de: null, ate: null };
+function pageRelatorios(){
+  const root = el('div');
+  if (!_filtroRel.ate) _filtroRel.ate = monthISO();
+  if (!_filtroRel.de){
+    const d = new Date(); d.setMonth(d.getMonth() - 5);
+    _filtroRel.de = d.toISOString().slice(0,7);
+  }
+
+  const filtros = el('div', { class: 'page-actions' });
+  const filtrosLeft = el('div', { class: 'filters' });
+  filtrosLeft.appendChild(el('input', { type: 'month', class: 'form-control', style: { width: '160px' }, value: _filtroRel.de, onchange: (e) => { _filtroRel.de = e.target.value; atualizar(); } }));
+  filtrosLeft.appendChild(el('input', { type: 'month', class: 'form-control', style: { width: '160px' }, value: _filtroRel.ate, onchange: (e) => { _filtroRel.ate = e.target.value; atualizar(); } }));
+  filtros.appendChild(filtrosLeft);
+  const btnExp = el('button', { class: 'btn btn-secondary', html: ICONS.download + '<span>Exportar CSV</span>', onclick: () => exportarDRE() });
+  filtros.appendChild(btnExp);
+  root.appendChild(filtros);
+
+  const summaryHolder = el('div');
+  const tableHolder = el('div');
+  root.append(summaryHolder, tableHolder);
+
+  function gerarMeses(){
+    const meses = [];
+    let [yD, mD] = _filtroRel.de.split('-').map(Number);
+    const [yA, mA] = _filtroRel.ate.split('-').map(Number);
+    let y = yD, m = mD, safety = 0;
+    while ((y < yA || (y === yA && m <= mA)) && safety++ < 60){
+      meses.push(`${y}-${String(m).padStart(2,'0')}`);
+      m++;
+      if (m > 12){ m = 1; y++; }
+    }
+    return meses;
+  }
+
+  function atualizar(){
+    const lancamentos = scopedList('lancamentos');
+    const meses = gerarMeses();
+    const dados = meses.map(mes => {
+      const nM = lancamentos.filter(l => (l.data||'').startsWith(mes));
+      const ent = nM.filter(l => l.tipo === 'entrada').reduce((a,b)=>a+Number(b.valor||0),0);
+      const sai = nM.filter(l => l.tipo === 'saida').reduce((a,b)=>a+Number(b.valor||0),0);
+      return { mes, ent, sai, res: ent - sai };
+    });
+    const totalEnt = dados.reduce((a,b)=>a+b.ent, 0);
+    const totalSai = dados.reduce((a,b)=>a+b.sai, 0);
+    const totalRes = totalEnt - totalSai;
+
+    summaryHolder.innerHTML = '';
+    summaryHolder.appendChild(el('div', { class: 'grid-metrics' }, [
+      metricCard('Total de receitas', fmtBRL(totalEnt), 'positive', meses.length + ' meses'),
+      metricCard('Total de despesas', fmtBRL(totalSai), 'negative', meses.length + ' meses'),
+      metricCard('Resultado líquido', fmtBRL(totalRes), totalRes >= 0 ? 'positive' : 'negative', 'Margem: ' + (totalEnt > 0 ? ((totalRes/totalEnt)*100).toFixed(1) + '%' : '—'))
+    ]));
+
+    tableHolder.innerHTML = '';
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-header' }, [ el('div', { class: 'card-title' }, 'Demonstrativo mês a mês') ]));
+    const tbl = el('table', { class: 'data-table' });
+    tbl.appendChild(el('thead', {}, el('tr', {}, [
+      el('th', {}, 'Mês'),
+      el('th', { class: 'num' }, 'Receitas'),
+      el('th', { class: 'num' }, 'Despesas'),
+      el('th', { class: 'num' }, 'Resultado'),
+      el('th', { class: 'num' }, 'Margem')
+    ])));
+    const tbody = el('tbody');
+    for (const d of dados){
+      const [y, m] = d.mes.split('-');
+      const mesLabel = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(m)-1] + '/' + y.slice(2);
+      const margem = d.ent > 0 ? ((d.res/d.ent)*100).toFixed(1) + '%' : '—';
+      tbody.appendChild(el('tr', {}, [
+        el('td', { style: { fontWeight: 600 } }, mesLabel),
+        el('td', { class: 'num', style: { color: 'var(--success)' } }, fmtBRL(d.ent)),
+        el('td', { class: 'num', style: { color: 'var(--danger)' } }, fmtBRL(d.sai)),
+        el('td', { class: 'num', style: { color: d.res >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 } }, fmtBRL(d.res)),
+        el('td', { class: 'num' }, margem)
+      ]));
+    }
+    tbody.appendChild(el('tr', { style: { background: 'var(--surface-2)' } }, [
+      el('td', { style: { fontWeight: 800 } }, 'TOTAL'),
+      el('td', { class: 'num', style: { color: 'var(--success)', fontWeight: 800 } }, fmtBRL(totalEnt)),
+      el('td', { class: 'num', style: { color: 'var(--danger)', fontWeight: 800 } }, fmtBRL(totalSai)),
+      el('td', { class: 'num', style: { color: totalRes >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 800 } }, fmtBRL(totalRes)),
+      el('td', { class: 'num', style: { fontWeight: 800 } }, totalEnt > 0 ? ((totalRes/totalEnt)*100).toFixed(1) + '%' : '—')
+    ]));
+    tbl.appendChild(tbody);
+    card.appendChild(el('div', { class: 'table-wrap' }, tbl));
+    tableHolder.appendChild(card);
+  }
+
+  function exportarDRE(){
+    const lancamentos = scopedList('lancamentos');
+    const meses = gerarMeses();
+    let csv = 'Mês;Receitas;Despesas;Resultado;Margem\n';
+    for (const mes of meses){
+      const nM = lancamentos.filter(l => (l.data||'').startsWith(mes));
+      const ent = nM.filter(l => l.tipo === 'entrada').reduce((a,b)=>a+Number(b.valor||0),0);
+      const sai = nM.filter(l => l.tipo === 'saida').reduce((a,b)=>a+Number(b.valor||0),0);
+      const res = ent - sai;
+      const margem = ent > 0 ? ((res/ent)*100).toFixed(1) + '%' : '';
+      csv += `${mes};${ent.toFixed(2).replace('.',',')};${sai.toFixed(2).replace('.',',')};${res.toFixed(2).replace('.',',')};${margem}\n`;
+    }
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: `DRE_${_filtroRel.de}_${_filtroRel.ate}.csv` });
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('Exportado.', 'success');
+  }
+
+  atualizar();
+  return root;
+}
+
+/* =========================================
+   17. PAGE: USUÁRIOS
+   ========================================= */
+function pageUsuarios(){
+  const root = el('div');
+  const filtros = el('div', { class: 'page-actions' });
+  filtros.appendChild(el('div', {}));
+  filtros.appendChild(el('button', { class: 'btn btn-primary', html: ICONS.plus + '<span>Novo usuário</span>', onclick: () => usuarioModal() }));
+  root.appendChild(filtros);
+
+  const card = el('div', { class: 'card' });
+  const tbl = el('table', { class: 'data-table' });
+  tbl.appendChild(el('thead', {}, el('tr', {}, [
+    el('th', {}, 'Nome'), el('th', {}, 'E-mail'), el('th', {}, 'Perfil'), el('th', {}, 'Unidade'), el('th', {}, 'Status'), el('th', { class: 'actions' }, '')
+  ])));
+  const tbody = el('tbody');
+  for (const u of DB.usuarios){
+    tbody.appendChild(el('tr', {}, [
+      el('td', { style: { fontWeight: 600 } }, u.nome),
+      el('td', {}, u.email),
+      el('td', {}, el('span', { class: 'badge badge-primary' }, ROLES[u.role]?.label || u.role)),
+      el('td', {}, u.empresaId ? empresaNome(u.empresaId) : el('span', { class: 'text-muted' }, 'Todas')),
+      el('td', {}, el('span', { class: 'badge ' + (u.ativo !== false ? 'badge-success' : 'badge-neutral') }, [ el('span', { class: 'badge-dot' }), u.ativo !== false ? 'Ativo' : 'Inativo' ])),
+      el('td', { class: 'actions' }, [
+        el('button', { class: 'btn-icon', title: 'Editar', html: ICONS.edit, onclick: () => usuarioModal(u) }),
+        (u.id !== currentUser().id && canDelete()) ? el('button', { class: 'btn-icon danger', title: 'Excluir', html: ICONS.trash, onclick: () => confirmDelete('usuarios', u.id, 'Excluir usuário "' + u.nome + '"?') }) : null
+      ])
+    ]));
+  }
+  tbl.appendChild(tbody);
+  card.appendChild(el('div', { class: 'table-wrap' }, tbl));
+  root.appendChild(card);
+  return root;
+}
+
+function usuarioModal(existing){
+  const isEdit = !!existing;
+  const item = existing ? {...existing} : { id: null, nome: '', email: '', role: 'operacional', empresaId: null, ativo: true };
+  const body = el('div');
+
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, [el('span', {}, 'Nome '), el('span', { class: 'req' }, '*')]),
+    el('input', { class: 'form-control', id: 'us-nome', type: 'text', value: item.nome || '' })
+  ]));
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label' }, [el('span', {}, 'E-mail '), el('span', { class: 'req' }, '*')]),
+    el('input', { class: 'form-control', id: 'us-email', type: 'email', value: item.email || '', disabled: isEdit }),
+    isEdit ? el('div', { class: 'form-hint' }, 'O e-mail não pode ser alterado após a criação.') : null
+  ]));
+  if (!isEdit){
+    body.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { class: 'form-label' }, [el('span', {}, 'Senha inicial '), el('span', { class: 'req' }, '*')]),
+      el('input', { class: 'form-control', id: 'us-senha', type: 'text', placeholder: 'Mínimo 6 caracteres', value: '' }),
+      el('div', { class: 'form-hint' }, 'O usuário poderá trocar a senha depois (recuperar por e-mail).')
+    ]));
+  }
+
+  const roleSel = el('select', { class: 'form-control', id: 'us-role', onchange: (e) => {
+    const empSel = $('#us-emp');
+    if (empSel){ empSel.disabled = e.target.value === 'admin'; if (e.target.value === 'admin') empSel.value = ''; }
+  }});
+  for (const k in ROLES){
+    const o = el('option', { value: k }, ROLES[k].label);
+    if (k === item.role) o.selected = true;
+    roleSel.appendChild(o);
+  }
+  body.appendChild(el('div', { class: 'form-group' }, [ el('label', { class: 'form-label' }, 'Perfil'), roleSel ]));
+
+  const empSel = el('select', { class: 'form-control', id: 'us-emp', disabled: item.role === 'admin' });
+  empSel.appendChild(el('option', { value: '' }, '— Sem unidade (admin) —'));
+  for (const emp of DB.empresas){
+    const o = el('option', { value: emp.id }, emp.nome);
+    if (emp.id === item.empresaId) o.selected = true;
+    empSel.appendChild(o);
+  }
+  body.appendChild(el('div', { class: 'form-group' }, [ el('label', { class: 'form-label' }, 'Unidade'), empSel ]));
+
+  body.appendChild(el('div', { class: 'form-group' }, [
+    el('label', { class: 'form-label flex gap-8', style: { alignItems: 'center', cursor: 'pointer' } }, [
+      el('input', { type: 'checkbox', id: 'us-ativo', checked: item.ativo !== false }),
+      el('span', {}, 'Usuário ativo (pode fazer login)')
+    ])
+  ]));
+
+  async function salvar(){
+    const nome = $('#us-nome').value.trim();
+    const email = $('#us-email').value.trim().toLowerCase();
+    const senhaRaw = isEdit ? '' : ($('#us-senha').value || '');
+    const role = $('#us-role').value;
+    const empVal = $('#us-emp').value;
+    const ativo = $('#us-ativo').checked;
+
+    if (!nome){ toast('Informe o nome.', 'error'); return; }
+    if (!email || !email.includes('@')){ toast('E-mail inválido.', 'error'); return; }
+    const dup = DB.usuarios.find(u => (u.email||'').toLowerCase() === email && u.id !== item.id);
+    if (dup){ toast('Já existe usuário com este e-mail.', 'error'); return; }
+    if (!isEdit && (!senhaRaw || senhaRaw.length < 6)){ toast('Senha deve ter pelo menos 6 caracteres.', 'error'); return; }
+
+    const empresaId = role === 'admin' ? null : (empVal || null);
+    if (role !== 'admin' && !empresaId){ toast('Selecione uma unidade para este perfil.', 'error'); return; }
+
+    const btn = $('#us-salvar');
+    if (btn){ btn.disabled = true; btn.textContent = isEdit ? 'Salvando...' : 'Criando...'; }
+
+    try {
+      if (isEdit){
+        await fbUpdate('usuarios', item.id, { nome, role, empresaId, ativo });
+        closeModal();
+        toast('Usuário atualizado.', 'success');
+        render();
+      } else {
+        // Cria usuário em uma "app secundária" para não deslogar o admin atual
+        const secName = 'secondary_' + Date.now();
+        const secApp = firebase.initializeApp(FIREBASE_CONFIG, secName);
+        try {
+          const secAuth = secApp.auth();
+          const cred = await secAuth.createUserWithEmailAndPassword(email, senhaRaw);
+          const newUid = cred.user.uid;
+          await secAuth.signOut();
+          // Cria doc em /usuarios/{newUid}
+          await fbSet('usuarios', newUid, { nome, email, role, empresaId, ativo, criadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+          closeModal();
+          toast('Usuário criado com sucesso.', 'success');
+          render();
+        } finally {
+          await secApp.delete();
+        }
+      }
+    } catch(e){
+      console.error(e);
+      let msg = 'Erro ao salvar usuário.';
+      if (e.code === 'auth/email-already-in-use') msg = 'Este e-mail já está cadastrado no Firebase Authentication.';
+      else if (e.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+      else if (e.code === 'auth/weak-password') msg = 'Senha muito fraca (mínimo 6 caracteres).';
+      else if (e.message) msg = e.message;
+      toast(msg, 'error');
+      if (btn){ btn.disabled = false; btn.textContent = isEdit ? 'Salvar' : 'Criar'; }
+    }
+  }
+
+  const footer = el('div', { class: 'flex gap-8' }, [
+    el('button', { class: 'btn btn-secondary', type: 'button', onclick: closeModal }, 'Cancelar'),
+    el('button', { class: 'btn btn-primary', type: 'button', id: 'us-salvar', onclick: salvar }, isEdit ? 'Salvar' : 'Criar')
+  ]);
+  openModal({ title: isEdit ? 'Editar usuário' : 'Novo usuário', body, footer });
+}
+
+/* =========================================
+   18. INIT (Firebase)
+   ========================================= */
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    initFirebase();
+    // onAuthStateChanged dispara imediatamente se já houver sessão
+    FB_AUTH.onAuthStateChanged(handleAuthStateChanged);
+    render(); // render inicial (loading screen)
+  } catch(e){
+    console.error('Erro na inicialização:', e);
+    LOADING = false;
+    const app = $('#app');
+    app.innerHTML = '';
+    app.appendChild(el('div', { class: 'login-wrap' }, el('div', { class: 'login-card' }, [
+      el('div', { class: 'login-title', style: { color: 'var(--danger)' } }, 'Erro ao iniciar'),
+      el('div', { class: 'login-sub' }, 'Não foi possível conectar ao Firebase. Verifique sua conexão e tente novamente.'),
+      el('pre', { style: { fontSize: '11px', background: 'var(--surface-2)', padding: '12px', borderRadius: '6px', marginTop: '12px', overflow: 'auto' } }, (e.message || String(e)))
+    ])));
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'l' && e.ctrlKey && e.shiftKey){ e.preventDefault(); if (SESSION) { logout(); toast('Sessão encerrada.', 'info'); } }
+});
+
+</script>
+</body>
+</html>
+
